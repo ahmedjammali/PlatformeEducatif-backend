@@ -1,8 +1,7 @@
 // controllers/userController.js
-const User = require('../models/User'); // Adjust path as needed
-const bcrypt = require('bcryptjs');
+const User = require('../models/User');
+const School = require('../models/School');
 const jwt = require('jsonwebtoken');
-const mongoose = require('mongoose');
 
 // Helper function to generate JWT token
 const generateToken = (userId) => {
@@ -11,99 +10,144 @@ const generateToken = (userId) => {
   });
 };
 
-// Create User (Admin/SuperAdmin only)
-const createUser = async (req, res) => {
+// Login
+const login = async (req, res) => {
   try {
-    const { name, email, password, role, createBy } = req.body;
-
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: 'User with this email already exists' });
+    const { email, password } = req.body;
+    
+    // Find user and populate school
+    const user = await User.findOne({ email }).populate('school');
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // Validate createBy for teacher and student roles
-    if ((role === 'teacher' || role === 'student') && !createBy) {
-      return res.status(400).json({ 
-        message: 'createBy is required when role is teacher or student' 
+    // Check password
+    const isValidPassword = await user.comparePassword(password);
+    if (!isValidPassword) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    // Check if user has access
+    const hasAccess = await user.hasAccess();
+    if (!hasAccess) {
+      return res.status(403).json({ 
+        message: 'Access denied. School access has been blocked.'
       });
     }
 
-    // If createBy is provided, verify that the creator exists
-    if (createBy) {
-      const creator = await User.findById(createBy);
-      if (!creator) {
-        return res.status(400).json({ message: 'Creator user not found' });
-      }
-    }
+    // Generate token
+    const token = generateToken(user._id);
 
-    // Create new user object
-    const userData = {
-      name,
-      email,
-      password, // Note: password will be hashed by the pre-save middleware in your model
-      role: role || 'student'
+    // User response without password
+    const userResponse = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      school: user.school
     };
 
-    // Add createBy if provided
-    if (createBy) {
-      userData.createBy = createBy;
-    }
-
-    // Create new user
-    const newUser = new User(userData);
-    const savedUser = await newUser.save();
-
-    // Remove password from response
-    const userResponse = savedUser.toObject();
-    delete userResponse.password;
-
-    res.status(201).json({
-      message: 'User created successfully',
+    res.status(200).json({
+      message: 'Login successful',
+      token,
       user: userResponse
     });
   } catch (error) {
-    // Handle validation errors specifically
-    if (error.name === 'ValidationError') {
-      const validationErrors = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({ 
-        message: 'Validation error', 
-        errors: validationErrors 
-      });
-    }
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
-// Get all users with filtering and pagination
+// Create User (Admin creates teachers/students, SuperAdmin creates admin)
+const createUser = async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+    const creatorId = req.userId;
+    const creatorRole = req.userRole;
+
+    // Validation: Check role hierarchy
+    if (creatorRole === 'superadmin' && role !== 'admin') {
+      return res.status(403).json({ 
+        message: 'SuperAdmin can only create admin accounts' 
+      });
+    }
+    
+    if (creatorRole === 'admin' && !['teacher', 'student'].includes(role)) {
+      return res.status(403).json({ 
+        message: 'Admin can only create teacher and student accounts' 
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ 
+        message: 'User with this email already exists' 
+      });
+    }
+
+    // Get school
+    let schoolId = req.schoolId;
+    if (role === 'admin') {
+      const school = await School.findOne();
+      schoolId = school?._id;
+    }
+
+    // Create user
+    const newUser = new User({
+      name,
+      email,
+      password,
+      role,
+      createdBy: creatorId,
+      school: role !== 'superadmin' ? schoolId : undefined
+    });
+
+    const savedUser = await newUser.save();
+
+    res.status(201).json({
+      message: `${role} account created successfully`,
+      user: {
+        id: savedUser._id,
+        name: savedUser.name,
+        email: savedUser.email,
+        role: savedUser.role
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Get all users (filtered by role and requester's permissions)
 const getAllUsers = async (req, res) => {
   try {
-    const { role, page = 1, limit = 50, search } = req.query;
+    const { role, page = 1, limit = 50 } = req.query;
+    const userRole = req.userRole;
+    const schoolId = req.schoolId;
     
-    // Build filter object
     let filter = {};
-    if (role) {
-      filter.role = role;
-    }
-    if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
-      ];
+
+    // SuperAdmin sees all users
+    // Admin sees only users in their school
+    // Teachers see only students
+    if (userRole === 'admin') {
+      filter.school = schoolId;
+      if (role) filter.role = role;
+    } else if (userRole === 'teacher') {
+      filter.school = schoolId;
+      filter.role = 'student';
     }
 
-    // Calculate pagination
     const skip = (page - 1) * limit;
 
-    // Get users with pagination and populate createBy
     const users = await User.find(filter)
       .select('-password')
-      .populate('createBy', 'name email role')
+      .populate('studentClass', 'name')
+      .populate('createdBy', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
 
-    // Get total count for pagination
     const total = await User.countDocuments(filter);
 
     res.status(200).json({
@@ -111,9 +155,7 @@ const getAllUsers = async (req, res) => {
       pagination: {
         currentPage: parseInt(page),
         totalPages: Math.ceil(total / limit),
-        totalUsers: total,
-        hasNext: page * limit < total,
-        hasPrev: page > 1
+        totalUsers: total
       }
     });
   } catch (error) {
@@ -128,7 +170,11 @@ const getUserById = async (req, res) => {
     
     const user = await User.findById(id)
       .select('-password')
-      .populate('createBy', 'name email role');
+      .populate('school', 'name')
+      .populate('studentClass', 'name')
+      .populate('teachingClasses.class', 'name')
+      .populate('teachingClasses.subjects', 'name')
+      .populate('createdBy', 'name');
     
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -144,17 +190,12 @@ const getUserById = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const { name, email } = req.body;
 
-    // Don't allow password updates through this endpoint
-    if (updates.password) {
-      delete updates.password;
-    }
-
-    // Check if email is being updated and if it already exists
-    if (updates.email) {
+    // Check if email is being updated and already exists
+    if (email) {
       const existingUser = await User.findOne({ 
-        email: updates.email, 
+        email, 
         _id: { $ne: id } 
       });
       if (existingUser) {
@@ -162,31 +203,15 @@ const updateUser = async (req, res) => {
       }
     }
 
-    // If role is being updated to teacher or student, ensure createBy is provided
-    if (updates.role && (updates.role === 'teacher' || updates.role === 'student')) {
-      const currentUser = await User.findById(id);
-      if (!currentUser.createBy && !updates.createBy) {
-        return res.status(400).json({ 
-          message: 'createBy is required when role is teacher or student' 
-        });
-      }
-    }
-
-    // If createBy is being updated, verify that the creator exists
-    if (updates.createBy) {
-      const creator = await User.findById(updates.createBy);
-      if (!creator) {
-        return res.status(400).json({ message: 'Creator user not found' });
-      }
-    }
+    const updates = {};
+    if (name) updates.name = name;
+    if (email) updates.email = email;
 
     const updatedUser = await User.findByIdAndUpdate(
       id,
       updates,
       { new: true, runValidators: true }
-    )
-    .select('-password')
-    .populate('createBy', 'name email role');
+    ).select('-password');
 
     if (!updatedUser) {
       return res.status(404).json({ message: 'User not found' });
@@ -197,44 +222,38 @@ const updateUser = async (req, res) => {
       user: updatedUser
     });
   } catch (error) {
-    // Handle validation errors specifically
-    if (error.name === 'ValidationError') {
-      const validationErrors = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({ 
-        message: 'Validation error', 
-        errors: validationErrors 
-      });
-    }
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+
 // Delete user
 const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // First check if the user exists
-    const userToDelete = await User.findById(id);
-    if (!userToDelete) {
+    const user = await User.findById(id);
+    if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // If the user is an admin, delete all teachers and students they created
-    if (userToDelete.role === 'admin') {
-      await User.deleteMany({ 
-        createBy: id,
-        role: { $in: ['teacher', 'student'] } 
-      });
+    // Prevent deleting the only admin
+    if (user.role === 'admin') {
+      const adminCount = await User.countDocuments({ role: 'admin' });
+      if (adminCount === 1) {
+        return res.status(400).json({ 
+          message: 'Cannot delete the only admin account' 
+        });
+      }
     }
 
-    // Now delete the admin
-    const deletedUser = await User.findByIdAndDelete(id);
+    await User.findByIdAndDelete(id);
 
     res.status(200).json({ message: 'User deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+
 // Change password
 const changePassword = async (req, res) => {
   try {
@@ -247,17 +266,14 @@ const changePassword = async (req, res) => {
     }
 
     // Verify current password
-    const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+    const isValidPassword = await user.comparePassword(currentPassword);
     if (!isValidPassword) {
       return res.status(400).json({ message: 'Current password is incorrect' });
     }
 
-    // Hash new password
-    const saltRounds = 10;
-    const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
-
     // Update password
-    await User.findByIdAndUpdate(id, { password: hashedNewPassword });
+    user.password = newPassword;
+    await user.save();
 
     res.status(200).json({ message: 'Password changed successfully' });
   } catch (error) {
@@ -265,355 +281,29 @@ const changePassword = async (req, res) => {
   }
 };
 
-// Login
-const login = async (req, res) => {
+// Get current user profile
+const getProfile = async (req, res) => {
   try {
-    const { email, password } = req.body;
-    
-    // Find user by email
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(401).json({ message: 'Invalid Email' });
-    }
-    
-    console.log(password, user.password);
-
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
-      return res.status(401).json({ message: 'Invalid Password' });
-    }
-    
-    // Generate token
-    const token = generateToken(user._id);
-
-    // User response without password
-    const userResponse = user.toObject();
-    delete userResponse.password;
-
-    res.status(200).json({
-      message: 'Login successful',
-      token,
-      user: userResponse
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-};
-
-// Get users by role
-const getUsersByRole = async (req, res) => {
-  try {
-    const { role } = req.params;
-    const { page = 1, limit = 50 } = req.query;
-
-    const validRoles = ['superadmin', 'admin', 'teacher', 'student'];
-    if (!validRoles.includes(role)) {
-      return res.status(400).json({ message: 'Invalid role specified' });
-    }
-
-    const skip = (page - 1) * limit;
-
-    const users = await User.find({ role })
+    const user = await User.findById(req.userId)
       .select('-password')
-      .populate('createBy', 'name email role')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+      .populate('school', 'name')
+      .populate('studentClass', 'name')
+      .populate('teachingClasses.class', 'name')
+      .populate('teachingClasses.subjects', 'name');
 
-    const total = await User.countDocuments({ role });
-
-    res.status(200).json({
-      users,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(total / limit),
-        totalUsers: total,
-        hasNext: page * limit < total,
-        hasPrev: page > 1
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-};
-
-// Get user statistics
-const getUserStats = async (req, res) => {
-  try {
-    const stats = await User.aggregate([
-      {
-        $group: {
-          _id: '$role',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
-
-    const totalUsers = await User.countDocuments();
-
-    const formattedStats = {
-      totalUsers,
-      byRole: stats.reduce((acc, stat) => {
-        acc[stat._id] = stat.count;
-        return acc;
-      }, {})
-    };
-
-    res.status(200).json({ stats: formattedStats });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-};
-
-// Get users created by a specific user with optional role filtering
-const getUsersCreatedBy = async (req, res) => {
-  try {
-    const { creatorId } = req.params;
-    const { role, page = 1, limit = 10, search } = req.query;
-
-    // Verify that the creator exists
-    const creator = await User.findById(creatorId);
-    if (!creator) {
-      return res.status(404).json({ message: 'Creator user not found' });
-    }
-
-    // Build filter object
-    let filter = { createBy: creatorId };
-    
-    // Add role filter if specified
-    if (role) {
-      const validRoles = ['teacher', 'student'];
-      if (!validRoles.includes(role)) {
-        return res.status(400).json({ 
-          message: 'Invalid role. Only teacher and student roles can be filtered for created users' 
-        });
-      }
-      filter.role = role;
-    }
-
-    // Add search filter if provided
-    if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
-      ];
-    }
-
-    // Calculate pagination
-    const skip = (page - 1) * limit;
-
-    // Get users with pagination
-    const users = await User.find(filter)
-      .select('-password')
-      .populate('createBy', 'name email role')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count for pagination
-    const total = await User.countDocuments(filter);
-
-    res.status(200).json({
-      users,
-      creator: {
-        id: creator._id,
-        name: creator.name,
-        email: creator.email,
-        role: creator.role
-      },
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(total / limit),
-        totalUsers: total,
-        hasNext: page * limit < total,
-        hasPrev: page > 1
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-};
-
-// Get students created by a specific user
-const getStudentsCreatedBy = async (req, res) => {
-  try {
-    const { creatorId } = req.params;
-    const { page = 1, limit = 10, search } = req.query;
-
-    // Verify that the creator exists
-    const creator = await User.findById(creatorId);
-    if (!creator) {
-      return res.status(404).json({ message: 'Creator user not found' });
-    }
-
-    // Build filter object
-    let filter = { 
-      createBy: creatorId,
-      role: 'student'
-    };
-
-    // Add search filter if provided
-    if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
-      ];
-    }
-
-    // Calculate pagination
-    const skip = (page - 1) * limit;
-
-    // Get students with pagination
-    const students = await User.find(filter)
-      .select('-password')
-      .populate('createBy', 'name email role')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count for pagination
-    const total = await User.countDocuments(filter);
-
-    res.status(200).json({
-      students,
-      creator: {
-        id: creator._id,
-        name: creator.name,
-        email: creator.email,
-        role: creator.role
-      },
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(total / limit),
-        totalStudents: total,
-        hasNext: page * limit < total,
-        hasPrev: page > 1
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-};
-
-// Get teachers created by a specific user
-const getTeachersCreatedBy = async (req, res) => {
-  try {
-    const { creatorId } = req.params;
-    const { page = 1, limit = 10, search } = req.query;
-
-    // Verify that the creator exists
-    const creator = await User.findById(creatorId);
-    if (!creator) {
-      return res.status(404).json({ message: 'Creator user not found' });
-    }
-
-    // Build filter object
-    let filter = { 
-      createBy: creatorId,
-      role: 'teacher'
-    };
-
-    // Add search filter if provided
-    if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
-      ];
-    }
-
-    // Calculate pagination
-    const skip = (page - 1) * limit;
-
-    // Get teachers with pagination
-    const teachers = await User.find(filter)
-      .select('-password')
-      .populate('createBy', 'name email role')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count for pagination
-    const total = await User.countDocuments(filter);
-
-    res.status(200).json({
-      teachers,
-      creator: {
-        id: creator._id,
-        name: creator.name,
-        email: creator.email,
-        role: creator.role
-      },
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(total / limit),
-        totalTeachers: total,
-        hasNext: page * limit < total,
-        hasPrev: page > 1
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-};
-
-// Get statistics of users created by a specific user
-const getCreatedUsersStats = async (req, res) => {
-  try {
-    const { creatorId } = req.params;
-
-    // Verify that the creator exists
-    const creator = await User.findById(creatorId);
-    if (!creator) {
-      return res.status(404).json({ message: 'Creator user not found' });
-    }
-
-    // Aggregate statistics
-    const stats = await User.aggregate([
-      {
-        $match: { createBy: mongoose.Types.ObjectId(creatorId) }
-      },
-      {
-        $group: {
-          _id: '$role',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
-
-    const totalCreatedUsers = await User.countDocuments({ createBy: creatorId });
-
-    const formattedStats = {
-      totalCreatedUsers,
-      creator: {
-        id: creator._id,
-        name: creator.name,
-        email: creator.email,
-        role: creator.role
-      },
-      byRole: stats.reduce((acc, stat) => {
-        acc[stat._id] = stat.count;
-        return acc;
-      }, {})
-    };
-
-    res.status(200).json({ stats: formattedStats });
+    res.status(200).json({ user });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
 module.exports = {
+  login,
   createUser,
   getAllUsers,
   getUserById,
   updateUser,
   deleteUser,
   changePassword,
-  login,
-  getUsersByRole,
-  getUserStats,
-  getUsersCreatedBy,
-  getStudentsCreatedBy,
-  getTeachersCreatedBy,
-  getCreatedUsersStats
+  getProfile
 };

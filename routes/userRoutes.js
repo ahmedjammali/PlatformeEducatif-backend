@@ -1,4 +1,4 @@
-// routes/userRoutes.js - Updated with createBy validation
+// routes/userRoutes.js
 const express = require('express');
 const router = express.Router();
 const {
@@ -9,51 +9,35 @@ const {
   deleteUser,
   changePassword,
   login,
-  getUsersByRole,
-  getUserStats,
-  getUsersCreatedBy,
-  getStudentsCreatedBy,
-  getTeachersCreatedBy,
-  getCreatedUsersStats
+  getProfile
 } = require('../controllers/UserController');
 
 const {
   authenticate,
-  canManageUsers,
-  isSuperAdmin,
   isAdminOrHigher,
-  isTeacherOrHigher,
-  canAccessUserData
+  isTeacherOrHigher
 } = require('../middleware/auth');
 
 // Validation middleware
 const validateUserCreation = (req, res, next) => {
-  const { name, email, password, role, createBy } = req.body;
+  const { name, email, password, role } = req.body;
   
-  if (!name || !email || !password) {
+  if (!name || !email || !password || !role) {
     return res.status(400).json({ 
-      message: 'Name, email, and password are required' 
+      message: 'Name, email, password, and role are required' 
     });
   }
 
   const validRoles = ['superadmin', 'admin', 'teacher', 'student'];
-  if (role && !validRoles.includes(role)) {
+  if (!validRoles.includes(role)) {
     return res.status(400).json({ 
       message: 'Invalid role. Must be one of: ' + validRoles.join(', ') 
     });
   }
 
-  // Check if createBy is required for teacher/student roles
-  if ((role === 'teacher' || role === 'student') && !createBy) {
+  if (password.length < 6) {
     return res.status(400).json({ 
-      message: 'createBy is required when role is teacher or student' 
-    });
-  }
-
-  // Only superadmin can create other superadmins
-  if (role === 'superadmin' && req.user && req.user.role !== 'superadmin') {
-    return res.status(403).json({ 
-      message: 'Only superadmin can create superadmin accounts' 
+      message: 'Password must be at least 6 characters long' 
     });
   }
 
@@ -90,59 +74,21 @@ const validatePasswordChange = (req, res, next) => {
   next();
 };
 
-// Middleware to automatically set createBy for specific role routes
-const setCreateByFromAuthenticatedUser = (req, res, next) => {
-  if (req.user && req.user.userId) {
-    req.body.createBy = req.user.userId;
-  }
-  next();
-};
-
 // Public routes
 router.post('/login', validateLogin, login);
 
 // Protected routes
-router.use(authenticate); // All routes below require authentication
+router.use(authenticate);
 
-// User management routes (Admin/SuperAdmin only)
-router.post('/', canManageUsers, validateUserCreation, createUser);
-router.get('/', isAdminOrHigher, getAllUsers);
-router.get('/stats', isAdminOrHigher, getUserStats);
+// Profile routes
+router.get('/profile', getProfile);
 
-// Specific role creation routes (for easier testing) - MOVED BEFORE parameterized routes
-router.post('/superadmin', isSuperAdmin, validateUserCreation, (req, res, next) => {
-  req.body.role = 'superadmin';
-  next();
-}, createUser);
-
-router.post('/admin', isSuperAdmin, validateUserCreation, (req, res, next) => {
-  req.body.role = 'admin';
-  next();
-}, createUser);
-
-router.post('/teacher', isAdminOrHigher, setCreateByFromAuthenticatedUser, validateUserCreation, (req, res, next) => {
-  req.body.role = 'teacher';
-  next();
-}, createUser);
-
-router.post('/student', isTeacherOrHigher, setCreateByFromAuthenticatedUser, validateUserCreation, (req, res, next) => {
-  req.body.role = 'student';
-  next();
-}, createUser);
-
-// Role-based routes - MOVED BEFORE parameterized routes
-router.get('/role/:role', isTeacherOrHigher, getUsersByRole);
-
-// Routes for getting users created by specific user
-router.get('/created-by/:creatorId', isTeacherOrHigher, getUsersCreatedBy);
-router.get('/created-by/:creatorId/students', isTeacherOrHigher, getStudentsCreatedBy);
-router.get('/created-by/:creatorId/teachers', isAdminOrHigher, getTeachersCreatedBy);
-router.get('/created-by/:creatorId/stats', isTeacherOrHigher, getCreatedUsersStats);
-
-// Individual user routes - MOVED TO END
-router.get('/:id', canAccessUserData, getUserById);
-router.put('/:id', canAccessUserData, updateUser);
-router.delete('/:id', canManageUsers, deleteUser);
-router.put('/:id/change-password', canAccessUserData, validatePasswordChange, changePassword);
+// User management routes
+router.post('/', isAdminOrHigher, validateUserCreation, createUser);
+router.get('/', isTeacherOrHigher, getAllUsers);
+router.get('/:id', isAdminOrHigher, getUserById);
+router.put('/:id', isAdminOrHigher, updateUser);
+router.delete('/:id', isAdminOrHigher, deleteUser);
+router.put('/:id/password', validatePasswordChange, changePassword);
 
 module.exports = router;

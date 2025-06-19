@@ -1,0 +1,138 @@
+// controllers/schoolController.js
+const School = require('../models/School');
+const User = require('../models/User');
+
+// Create the school (SuperAdmin only - one time operation)
+const createSchool = async (req, res) => {
+  try {
+    const { schoolName, adminName, adminEmail, adminPassword } = req.body;
+
+    // Check if a school already exists
+    const existingSchool = await School.findOne();
+    if (existingSchool) {
+      return res.status(400).json({ 
+        message: 'A school already exists. Only one school is allowed.' 
+      });
+    }
+
+    // Check if admin email already exists
+    const existingUser = await User.findOne({ email: adminEmail });
+    if (existingUser) {
+      return res.status(400).json({ 
+        message: 'An account with this email already exists' 
+      });
+    }
+
+    // First create the school without admin
+    const school = new School({
+      name: schoolName,
+      admin: null // Temporarily null
+    });
+
+    const savedSchool = await school.save();
+
+    // Then create admin user with school reference
+    const adminUser = new User({
+      name: adminName,
+      email: adminEmail,
+      password: adminPassword,
+      role: 'admin',
+      school: savedSchool._id, // Now we have the school ID
+      createdBy: req.userId
+    });
+
+    const savedAdmin = await adminUser.save();
+
+    // Update school with admin reference
+    savedSchool.admin = savedAdmin._id;
+    await savedSchool.save();
+
+    res.status(201).json({
+      message: 'School created successfully',
+      school: {
+        id: savedSchool._id,
+        name: savedSchool.name,
+        isActive: savedSchool.isActive
+      },
+      admin: {
+        id: savedAdmin._id,
+        name: savedAdmin.name,
+        email: savedAdmin.email
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Get the school
+const getSchool = async (req, res) => {
+  try {
+    const school = await School.findOne()
+      .populate('admin', 'name email');
+
+    if (!school) {
+      return res.status(404).json({ message: 'No school found' });
+    }
+
+    // Get statistics
+    const [totalTeachers, totalStudents, totalClasses] = await Promise.all([
+      User.countDocuments({ school: school._id, role: 'teacher' }),
+      User.countDocuments({ school: school._id, role: 'student' }),
+      require('../models/Class').countDocuments({ school: school._id })
+    ]);
+
+    res.status(200).json({
+      school: {
+        id: school._id,
+        name: school.name,
+        isActive: school.isActive,
+        admin: school.admin,
+        createdAt: school.createdAt
+      },
+      statistics: {
+        totalTeachers,
+        totalStudents,
+        totalClasses,
+        totalUsers: totalTeachers + totalStudents + 1
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Block/Unblock school (SuperAdmin only)
+const toggleSchoolAccess = async (req, res) => {
+  try {
+    const { block, reason } = req.body;
+
+    const school = await School.findOne();
+    if (!school) {
+      return res.status(404).json({ message: 'No school found' });
+    }
+
+    school.isActive = !block;
+    school.blockedReason = block ? (reason || 'No reason provided') : null;
+
+    await school.save();
+
+    res.status(200).json({
+      message: `School ${block ? 'blocked' : 'unblocked'} successfully`,
+      school: {
+        id: school._id,
+        name: school.name,
+        isActive: school.isActive,
+        blockedReason: school.blockedReason
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+module.exports = {
+  createSchool,
+  getSchool,
+  toggleSchoolAccess
+};

@@ -16,18 +16,32 @@ const exerciseSchema = new mongoose.Schema({
     ref: 'Subject',
     required: true
   },
-  createItBy: {
+  class: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Class',
+    required: true
+  },
+  createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
+    required: true
+  },
+  school: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'School',
     required: true
   },
   difficulty: {
     type: String,
     enum: ['easy', 'medium', 'hard'],
-    default: 'easy'
+    default: 'medium'
+  },
+  isActive: {
+    type: Boolean,
+    default: true
   },
   qcmQuestions: [{
-    question: {
+    questionText: {
       type: String,
       required: true
     },
@@ -43,8 +57,10 @@ const exerciseSchema = new mongoose.Schema({
     }],
     points: {
       type: Number,
-      default: 1
-    }
+      default: 1,
+      min: 0
+    },
+    explanation: String
   }],
   fillBlankQuestions: [{
     sentence: {
@@ -59,32 +75,50 @@ const exerciseSchema = new mongoose.Schema({
       correctAnswer: {
         type: String,
         required: true
-      }
+      },
+      acceptableAnswers: [String] // Alternative correct answers
     }],
     points: {
       type: Number,
-      default: 1
-    }
+      default: 1,
+      min: 0
+    },
+    hint: String
   }],
-  customQuestions: {
-    type: mongoose.Schema.Types.Mixed,
-    default: {}
-  },
   totalPoints: {
     type: Number,
     default: 0
   },
   metadata: {
     instructions: String,
-    estimatedTime: Number,
-    requiresImages: Boolean,
-    requiresAudio: Boolean,
-    customSettings: mongoose.Schema.Types.Mixed
-  }
+    estimatedTime: {
+      type: Number,
+      default: 30 // in minutes
+    },
+    maxAttempts: {
+      type: Number,
+      default: 3
+    },
+    showAnswersAfterCompletion: {
+      type: Boolean,
+      default: true
+    },
+    shuffleQuestions: {
+      type: Boolean,
+      default: false
+    },
+    shuffleOptions: {
+      type: Boolean,
+      default: true
+    }
+  },
+  tags: [String],
+  dueDate: Date
 }, {
   timestamps: true
 });
 
+// Calculate total points before saving
 exerciseSchema.pre('save', function(next) {
   let total = 0;
 
@@ -95,16 +129,23 @@ exerciseSchema.pre('save', function(next) {
     case 'fill_blanks':
       total = this.fillBlankQuestions.reduce((sum, q) => sum + q.points, 0);
       break;
-    default:
-      if (this.customQuestions && this.customQuestions.questions) {
-        total = this.customQuestions.questions.reduce((sum, q) => sum + (q.points || 1), 0);
-      }
   }
 
   this.totalPoints = total;
   next();
 });
 
+// Validate that at least one question exists
+exerciseSchema.pre('save', function(next) {
+  if (this.type === 'qcm' && (!this.qcmQuestions || this.qcmQuestions.length === 0)) {
+    next(new Error('QCM exercises must have at least one question'));
+  } else if (this.type === 'fill_blanks' && (!this.fillBlankQuestions || this.fillBlankQuestions.length === 0)) {
+    next(new Error('Fill blanks exercises must have at least one question'));
+  }
+  next();
+});
+
+// Method to get questions based on type
 exerciseSchema.methods.getQuestions = function() {
   switch (this.type) {
     case 'qcm':
@@ -112,15 +153,13 @@ exerciseSchema.methods.getQuestions = function() {
     case 'fill_blanks':
       return this.fillBlankQuestions;
     default:
-      return this.customQuestions.questions || [];
+      return [];
   }
 };
 
-exerciseSchema.statics.getAvailableTypes = function() {
-  return [
-    { value: 'qcm', label: 'Questions à Choix Multiple' },
-    { value: 'fill_blanks', label: 'Remplir les Blancs' }
-  ];
-};
+// Indexes
+exerciseSchema.index({ class: 1, subject: 1, isActive: 1 });
+exerciseSchema.index({ createdBy: 1, createdAt: -1 });
+exerciseSchema.index({ school: 1 });
 
 module.exports = mongoose.model('Exercise', exerciseSchema);

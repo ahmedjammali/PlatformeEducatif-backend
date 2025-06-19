@@ -22,15 +22,15 @@ router.post('/',contactController.createContact);
 router.use(authenticate); // All routes below require authentication
 
 // Get all contacts
-router.get('/',isSuperAdmin ,contactController.getAllContacts);
+router.get('/',isAdminOrHigher ,contactController.getAllContacts);
 
 // Get contact by ID
-router.get('/:id',  isSuperAdmin, contactController.getContactById);
+router.get('/:id',  isAdminOrHigher, contactController.getContactById);
 
 // Update contact
-router.put('/:id', isSuperAdmin, contactController.updateContact);
+router.put('/:id', isAdminOrHigher, contactController.updateContact);
 
 // Delete contact
-router.delete('/:id', isSuperAdmin,  contactController.deleteContact);
+router.delete('/:id', isAdminOrHigher,  contactController.deleteContact);
 
 module.exports = router;
