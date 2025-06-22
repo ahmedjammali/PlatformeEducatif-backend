@@ -6,11 +6,11 @@ const {
   toggleSchoolAccess
 } = require('../controllers/SchoolController');
 
-const { authenticate, isSuperAdmin } = require('../middleware/auth');
+const { authenticate, isSuperAdmin, isAdminOrHigher } = require('../middleware/auth');
 
 // All routes require authentication and superadmin role
 router.use(authenticate);
-router.use(isSuperAdmin);
+router.use(isAdminOrHigher);
 
 router.post('/', createSchool);
 router.get('/', getSchool);

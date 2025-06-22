@@ -1,4 +1,3 @@
-// server.js
 const mongoose = require('mongoose');
 require('dotenv').config();
 const app = require('./app');
@@ -24,7 +23,7 @@ const createSuperAdmin = async () => {
         password: "superadmin123",
         role: "superadmin"
       });
-      
+
       await superAdmin.save();
       console.log('SuperAdmin created successfully');
       console.log('Email: superadmin@platform.com');
