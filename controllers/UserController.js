@@ -130,13 +130,15 @@ const getAllUsers = async (req, res) => {
     // SuperAdmin sees all users
     // Admin sees only users in their school
     // Teachers see only students
-    if (userRole === 'admin') {
+    if (userRole === 'admin' ) {
       filter.school = schoolId;
       if (role) filter.role = role;
     } else if (userRole === 'teacher') {
       filter.school = schoolId;
       filter.role = 'student';
     }
+
+    if (role) filter.role = role;
 
     const skip = (page - 1) * limit;
 

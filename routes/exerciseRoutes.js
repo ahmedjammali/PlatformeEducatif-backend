@@ -7,7 +7,8 @@ const {
   updateExercise,
   deleteExercise,
   submitExercise,
-  getStudentProgress
+  getStudentProgress , 
+  getExercisesBySubject
 } = require('../controllers/exerciseController');
 
 const {
@@ -32,5 +33,8 @@ router.post('/:exerciseId/submit', isStudent, submitExercise);
 
 // Progress route (teachers see all, students see their own)
 router.get('/:exerciseId/progress', getStudentProgress);
+
+// Get exercises by subject
+router.get('/subject/:subjectId', getExercisesBySubject);
 
 module.exports = router;

@@ -3,6 +3,7 @@ const Exercise = require('../models/Exercise');
 const Class = require('../models/Class');
 const School = require('../models/School');
 const StudentProgress = require('../models/StudentProgress');
+const User = require('../models/User');
 
 // Create exercise (Teacher only)
 const createExercise = async (req, res) => {
@@ -407,6 +408,93 @@ const getStudentProgress = async (req, res) => {
   }
 };
 
+
+// Get exercises by subject for student
+const getExercisesBySubject = async (req, res) => {
+  try {
+    const { subjectId } = req.params;
+    const studentId = req.userId;
+    const { page = 1, limit = 20, difficulty, status } = req.query;
+
+    console.log(`Fetching exercises for subject ${subjectId} for student ${studentId}`);
+
+    // Get student's class
+    const student = await User.findById(studentId);
+    if (!student || !student.studentClass) {
+      return res.status(403).json({ 
+        message: 'You must be assigned to a class to view exercises' 
+      });
+    }
+
+    // Base filter
+    let filter = {
+      subject: subjectId,
+      class: student.studentClass,
+      isActive: true
+    };
+
+    if (difficulty) filter.difficulty = difficulty;
+
+    const skip = (page - 1) * limit;
+
+    // Get exercises
+    const exercises = await Exercise.find(filter)
+      .select('title type difficulty totalPoints dueDate createdAt metadata')
+      .populate('createdBy', 'name')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Get student's progress for these exercises
+    const exerciseIds = exercises.map(e => e._id);
+    const progressRecords = await StudentProgress.find({
+      student: studentId,
+      exercise: { $in: exerciseIds }
+    }).sort({ attemptNumber: -1 });
+
+    // Create a map of exercise progress
+    const progressMap = {};
+    progressRecords.forEach(progress => {
+      const exerciseId = progress.exercise.toString();
+      if (!progressMap[exerciseId] || progress.attemptNumber > progressMap[exerciseId].attemptNumber) {
+        progressMap[exerciseId] = {
+          attemptNumber: progress.attemptNumber,
+          score: progress.totalPointsEarned,
+          accuracy: progress.accuracyPercentage,
+          completedAt: progress.completedAt,
+          status: progress.accuracyPercentage >= 50 ? 'passed' : 'failed'
+        };
+      }
+    });
+
+    // Combine exercises with progress
+    const exercisesWithProgress = exercises.map(exercise => {
+      const progress = progressMap[exercise._id.toString()];
+      return {
+        ...exercise.toObject(),
+        studentProgress: progress || null,
+        status: progress ? 'completed' : 'pending',
+        remainingAttempts: progress 
+          ? Math.max(0, (exercise.metadata?.maxAttempts || 3) - progress.attemptNumber)
+          : (exercise.metadata?.maxAttempts || 3)
+      };
+    });
+
+    const total = await Exercise.countDocuments(filter);
+
+    res.status(200).json({
+      exercises: exercisesWithProgress,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / limit),
+        totalExercises: total
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   createExercise,
   getAllExercises,
@@ -414,5 +502,6 @@ module.exports = {
   updateExercise,
   deleteExercise,
   submitExercise,
-  getStudentProgress
+  getStudentProgress , 
+  getExercisesBySubject
 };

@@ -11,7 +11,8 @@ const {
   assignTeacherToSubjects,
   removeTeacherFromClass,
   getClassStudents,
-  getClassTeachers
+  getClassTeachers , 
+  getStudentClass
 } = require('../controllers/ClassController');
 
 const {
@@ -36,5 +37,8 @@ router.get('/', getAllClasses);
 router.get('/:classId', getClassById);
 router.get('/:classId/students', isTeacherOrHigher, getClassStudents);
 router.get('/:classId/teachers', getClassTeachers);
+
+// Get class for a specific student
+router.get('/student/my-class', getStudentClass);
 
 module.exports = router;

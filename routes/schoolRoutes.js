@@ -10,10 +10,9 @@ const { authenticate, isSuperAdmin, isAdminOrHigher } = require('../middleware/a
 
 // All routes require authentication and superadmin role
 router.use(authenticate);
-router.use(isAdminOrHigher);
 
-router.post('/', createSchool);
+router.post('/',isSuperAdmin ,createSchool);
 router.get('/', getSchool);
-router.put('/access', toggleSchoolAccess);
+router.put('/access', isSuperAdmin,toggleSchoolAccess);
 
 module.exports = router;

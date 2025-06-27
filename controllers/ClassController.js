@@ -416,6 +416,59 @@ const getClassTeachers = async (req, res) => {
   }
 };
 
+
+// Get student's current class with subjects
+const getStudentClass = async (req, res) => {
+  try {
+    const studentId = req.userId;
+    
+    // Get student with populated class
+    const student = await User.findById(studentId)
+      .populate({
+        path: 'studentClass',
+        populate: {
+          path: 'teacherSubjects.subjects',
+          select: 'name description imagePath'
+        }
+      });
+
+    if (!student || !student.studentClass) {
+      return res.status(404).json({ 
+        message: 'You are not assigned to any class' 
+      });
+    }
+
+    // Extract unique subjects from all teachers
+    const subjectsMap = new Map();
+    student.studentClass.teacherSubjects.forEach(ts => {
+      ts.subjects.forEach(subject => {
+        if (!subjectsMap.has(subject._id.toString())) {
+          subjectsMap.set(subject._id.toString(), {
+            _id: subject._id,
+            name: subject.name,
+            description: subject.description,
+            imagePath: subject.imagePath
+          });
+        }
+      });
+    });
+
+    const subjects = Array.from(subjectsMap.values());
+
+    res.status(200).json({
+      class: {
+        _id: student.studentClass._id,
+        name: student.studentClass.name,
+        grade: student.studentClass.grade,
+        academicYear: student.studentClass.academicYear
+      },
+      subjects
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   createClass,
   getAllClasses,
@@ -427,5 +480,6 @@ module.exports = {
   assignTeacherToSubjects,
   removeTeacherFromClass,
   getClassStudents,
-  getClassTeachers
+  getClassTeachers,
+  getStudentClass
 };
