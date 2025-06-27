@@ -2,6 +2,7 @@
 const User = require('../models/User');
 const School = require('../models/School');
 const jwt = require('jsonwebtoken');
+const Class = require('../models/Class');
 
 // Helper function to generate JWT token
 const generateToken = (userId) => {
@@ -227,7 +228,6 @@ const updateUser = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 // Delete user
 const deleteUser = async (req, res) => {
   try {
@@ -248,6 +248,24 @@ const deleteUser = async (req, res) => {
       }
     }
 
+    // Clean up class associations based on user role
+    if (user.role === 'teacher') {
+      // Remove teacher from all classes they teach
+      await Class.updateMany(
+        { 'teacherSubjects.teacher': id },
+        { $pull: { teacherSubjects: { teacher: id } } }
+      );
+    } else if (user.role === 'student') {
+      // Remove student from their class
+      if (user.studentClass) {
+        await Class.findByIdAndUpdate(
+          user.studentClass,
+          { $pull: { students: id } }
+        );
+      }
+    }
+
+    // Delete the user
     await User.findByIdAndDelete(id);
 
     res.status(200).json({ message: 'User deleted successfully' });
