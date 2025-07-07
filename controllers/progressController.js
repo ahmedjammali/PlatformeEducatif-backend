@@ -279,7 +279,7 @@ const deleteStudentProgress = async (req, res) => {
     if (!progress) {
       return res.status(404).json({ message: 'Progress record not found' });
     }
-
+    
     await StudentProgress.findByIdAndDelete(progressId);
 
     res.status(200).json({ message: 'Progress record deleted successfully' });

@@ -131,8 +131,67 @@ const toggleSchoolAccess = async (req, res) => {
   }
 };
 
+
+
+// Update school name (Admin or SuperAdmin only)
+const updateSchoolName = async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    // Validate input
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({ 
+        message: 'School name is required and must be a non-empty string' 
+      });
+    }
+
+    // Check if name is too long (optional validation)
+    if (name.trim().length > 100) {
+      return res.status(400).json({ 
+        message: 'School name cannot exceed 100 characters' 
+      });
+    }
+
+    // Find the school
+    const school = await School.findOne();
+    if (!school) {
+      return res.status(404).json({ message: 'No school found' });
+    }
+
+    // Check if school is active
+    if (!school.isActive) {
+      return res.status(403).json({ 
+        message: 'Cannot update school name. School is currently blocked.' 
+      });
+    }
+
+    // Store old name for response
+    const oldName = school.name;
+
+    // Update the school name
+    school.name = name.trim();
+    const updatedSchool = await school.save();
+
+    res.status(200).json({
+      message: 'School name updated successfully',
+      school: {
+        id: updatedSchool._id,
+        name: updatedSchool.name,
+        oldName: oldName,
+        isActive: updatedSchool.isActive,
+        updatedAt: updatedSchool.updatedAt
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+
+
 module.exports = {
   createSchool,
   getSchool,
-  toggleSchoolAccess
+  toggleSchoolAccess , 
+  updateSchoolName
 };

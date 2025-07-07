@@ -87,7 +87,7 @@ router.get('/profile', getProfile);
 // User management routes
 router.post('/', isAdminOrHigher, validateUserCreation, createUser);
 router.get('/', isTeacherOrHigher, getAllUsers);
-router.get('/:id', isAdminOrHigher, getUserById);
+router.get('/:id', isTeacherOrHigher, getUserById);
 router.put('/:id', isAdminOrHigher, updateUser);
 router.delete('/:id', isAdminOrHigher, deleteUser);
 router.put('/:id/password', validatePasswordChange, changePassword);

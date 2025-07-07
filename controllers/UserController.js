@@ -3,6 +3,10 @@ const User = require('../models/User');
 const School = require('../models/School');
 const jwt = require('jsonwebtoken');
 const Class = require('../models/Class');
+const Exercise = require('../models/Exercise');
+const Grade = require('../models/Grade');
+  const StudentProgress = require('../models/StudentProgress');
+
 
 // Helper function to generate JWT token
 const generateToken = (userId) => {
@@ -122,7 +126,7 @@ const createUser = async (req, res) => {
 // Get all users (filtered by role and requester's permissions)
 const getAllUsers = async (req, res) => {
   try {
-    const { role, page = 1, limit = 50 } = req.query;
+    const { role, page = 1, limit = 1000 } = req.query;
     const userRole = req.userRole;
     const schoolId = req.schoolId;
     
@@ -227,7 +231,10 @@ const updateUser = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
+
 };
+
+
 // Delete user
 const deleteUser = async (req, res) => {
   try {
@@ -248,13 +255,30 @@ const deleteUser = async (req, res) => {
       }
     }
 
-    // Clean up class associations based on user role
+    // Clean up class associations and related data based on user role
     if (user.role === 'teacher') {
       // Remove teacher from all classes they teach
       await Class.updateMany(
         { 'teacherSubjects.teacher': id },
         { $pull: { teacherSubjects: { teacher: id } } }
       );
+      
+      // Find all exercises created by this teacher
+
+      const teacherExercises = await Exercise.find({ createdBy: id });
+      const exerciseIds = teacherExercises.map(exercise => exercise._id);
+      
+      // Delete all student progress associated with these exercises
+
+      const deletedProgress = await StudentProgress.deleteMany({ 
+        exercise: { $in: exerciseIds } 
+      });
+      
+      // Delete all exercises created by this teacher
+      const deletedExercises = await Exercise.deleteMany({ createdBy: id });
+      
+      console.log(`Deleted ${deletedExercises.deletedCount} exercises and ${deletedProgress.deletedCount} student progress records for teacher ${user.name}`);
+      
     } else if (user.role === 'student') {
       // Remove student from their class
       if (user.studentClass) {
@@ -263,17 +287,27 @@ const deleteUser = async (req, res) => {
           { $pull: { students: id } }
         );
       }
+      
+
+
+      const deletedGrades = await Grade.deleteMany({ student: id });
+      
+      const deletedProgress = await StudentProgress.deleteMany({ student: id });
+      
+      console.log(`Deleted ${deletedGrades.deletedCount} grades and ${deletedProgress.deletedCount} progress records for student ${user.name}`);
     }
 
-    // Delete the user
     await User.findByIdAndDelete(id);
 
-    res.status(200).json({ message: 'User deleted successfully' });
+    res.status(200).json({ 
+      message: 'User deleted successfully',
+      ...(user.role === 'student' && { gradesDeleted: true, progressDeleted: true }),
+      ...(user.role === 'teacher' && { exercisesDeleted: true, progressDeleted: true })
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 // Change password
 const changePassword = async (req, res) => {
   try {

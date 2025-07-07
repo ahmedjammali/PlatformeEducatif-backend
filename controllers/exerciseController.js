@@ -5,6 +5,7 @@ const School = require('../models/School');
 const StudentProgress = require('../models/StudentProgress');
 const User = require('../models/User');
 
+
 // Create exercise (Teacher only)
 const createExercise = async (req, res) => {
   try {
@@ -90,7 +91,7 @@ const createExercise = async (req, res) => {
 // Get all exercises (filtered by user role)
 const getAllExercises = async (req, res) => {
   try {
-    const { classId, subject, type, page = 1, limit = 20 } = req.query;
+    const { classId, subject, type, page = 1, limit = 50 } = req.query;
     const userId = req.userId;
     const userRole = req.userRole;
 
@@ -205,7 +206,7 @@ const updateExercise = async (req, res) => {
     }
 
     // Check if teacher owns this exercise
-    if (exercise.createdBy.toString() !== teacherId) {
+    if (exercise.createdBy.toString() != teacherId) {
       return res.status(403).json({ message: 'You can only update your own exercises' });
     }
 
@@ -231,8 +232,7 @@ const updateExercise = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
-// Delete exercise (Teacher only)
+// Delete exercise (Teacher only) - Hard delete with cascade
 const deleteExercise = async (req, res) => {
   try {
     const { exerciseId } = req.params;
@@ -248,16 +248,20 @@ const deleteExercise = async (req, res) => {
       return res.status(403).json({ message: 'You can only delete your own exercises' });
     }
 
-    // Soft delete (deactivate)
-    exercise.isActive = false;
-    await exercise.save();
+    // Delete all student progress records related to this exercise
+    const deletedProgressCount = await StudentProgress.deleteMany({ exercise: exerciseId });
 
-    res.status(200).json({ message: 'Exercise deleted successfully' });
+    // Hard delete - completely remove exercise from database
+    await Exercise.findByIdAndDelete(exerciseId);
+
+    res.status(200).json({ 
+      message: 'Exercise and all related progress deleted successfully',
+      deletedProgressRecords: deletedProgressCount.deletedCount
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 // Submit exercise (Student only)
 const submitExercise = async (req, res) => {
   try {

@@ -47,7 +47,7 @@ const gradeSchema = new mongoose.Schema({
   coefficient: {
     type: Number,
     default: 1,
-    min: 0.5,
+    min: 0.1,
     max: 5
   },
   examDate: {

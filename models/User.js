@@ -55,7 +55,8 @@ const userSchema = new mongoose.Schema({
       return this.role !== 'superadmin';
     }
   }
-}, {
+},
+ {
   timestamps: true
 });
 
