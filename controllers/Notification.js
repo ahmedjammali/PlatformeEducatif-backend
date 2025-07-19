@@ -89,7 +89,9 @@ exports.createNotification = async (req, res) => {
     }
 
     // Teachers can only create notifications for their classes
-    if (req.userRole === 'teacher' && targetAudience === 'specific_class') {
+    if (req.userRole == 'teacher' && targetAudience == 'specific_class') {
+
+      
       const teachingClassIds = req.user.teachingClasses.map(tc => tc.class.toString());
       if (!teachingClassIds.includes(targetClass)) {
         return res.status(403).json({
@@ -159,7 +161,7 @@ exports.getNotifications = async (req, res) => {
   try {
     const {
       page = 1,
-      limit = 20,
+      limit = 50,
       unreadOnly = false,
       type,
       priority,

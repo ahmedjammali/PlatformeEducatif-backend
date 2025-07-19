@@ -20,6 +20,9 @@ const gradeRoutes = require('./routes/gradeRoutes');
 const progressRoutes = require('./routes/progressRoutes');
 const contactRoutes = require('./routes/contactRoutes');
 
+const chatRoutes = require('./routes/chatRoutes');
+
+
 
 setupUploadDirectories().catch(console.error);
 // API Routes
@@ -32,6 +35,8 @@ app.use('/api/grades', gradeRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/notifications', notificationRoutes);
+
+app.use('/api/chat', chatRoutes);
 setupFileServing(app);
 // Health check
 app.get('/api/health', (req, res) => {
