@@ -2,6 +2,18 @@
 const Chat = require('../models/Chat');
 const User = require('../models/User');
 require('dotenv').config();
+const removeMarkdown = (text) => {
+  return text
+    .replace(/!\[.*?\]\(.*?\)/g, '') // Remove images
+    .replace(/\[(.*?)\]\(.*?\)/g, '$1') // Remove links but keep text
+    .replace(/[*_~`>#-]+/g, '') // Remove markdown characters
+    .replace(/^\s*\n/gm, '') // Remove empty lines
+    .replace(/^\s{0,3}[-*+] /gm, '') // Remove list bullets
+    .replace(/^\s{0,3}\d+\. /gm, '') // Remove numbered list bullets
+    .replace(/\n{2,}/g, '\n') // Collapse multiple newlines
+    .trim();
+};
+
 
 // Send message to AI and get response
 const sendMessage = async (req, res) => {
@@ -58,10 +70,11 @@ const sendMessage = async (req, res) => {
     // Add AI response and save
     const saveStartTime = Date.now();
     const assistantMessage = {
-      role: 'assistant',
-      content: aiResponse,
-      timestamp: new Date()
-    };
+    role: 'assistant',
+        content: removeMarkdown(aiResponse),
+        timestamp: new Date()
+      };
+
 
     chat.messages.push(assistantMessage);
     await chat.save();

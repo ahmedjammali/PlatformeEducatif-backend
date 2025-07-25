@@ -616,21 +616,23 @@ async function checkUserAccessToNotification(user, notification) {
     return true;
   }
 
-  if (notification.targetAudience === 'students' && user.role === 'student') {
+  if (notification.targetAudience == 'students' && user.role == 'student') {
     return true;
   }
 
-  if (notification.targetAudience === 'teachers' && user.role === 'teacher') {
+  if (notification.targetAudience == 'teachers' && user.role == 'teacher') {
     return true;
   }
 
-  if (notification.targetAudience === 'specific_class') {
-    if (user.role === 'student' && 
-        user.studentClass?.toString() === notification.targetClass.toString()) {
+  if (notification.targetAudience == 'specific_class') {
+
+    if (user.role == 'student' && 
+        user.studentClass._id.toString() == notification.targetClass.toString()) {
+
       return true;
     }
     
-    if (user.role === 'teacher') {
+    if (user.role == 'teacher') {
       const teachingClassIds = user.teachingClasses.map(tc => tc.class.toString());
       return teachingClassIds.includes(notification.targetClass.toString());
     }
