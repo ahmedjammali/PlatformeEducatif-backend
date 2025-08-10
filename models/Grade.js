@@ -35,14 +35,8 @@ const gradeSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 0,
-    max: 20,
-    validate: {
-      validator: function(value) {
-        // Allow half points (e.g., 15.5)
-        return value % 0.5 === 0;
-      },
-      message: 'Grade must be a whole number or half point (e.g., 15 or 15.5)'
-    }
+    max: 20
+    // Removed the validator that restricted to half points
   },
   coefficient: {
     type: Number,

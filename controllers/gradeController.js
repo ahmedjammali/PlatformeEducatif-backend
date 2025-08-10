@@ -30,12 +30,12 @@ const createGrade = async (req, res) => {
       });
     }
 
-    // Validate grade is whole number or .5
-    if (grade % 0.5 !== 0) {
-      return res.status(400).json({ 
-        message: 'La note doit être un nombre entier ou demi-point (ex: 15 ou 15.5)' 
-      });
-    }
+    // Removed the validation for half points - now accepts any decimal
+    // if (grade % 0.5 !== 0) {
+    //   return res.status(400).json({ 
+    //     message: 'La note doit être un nombre entier ou demi-point (ex: 15 ou 15.5)' 
+    //   });
+    // }
 
     // Get school
     const school = await School.findOne();
@@ -279,11 +279,12 @@ const updateGrade = async (req, res) => {
           message: 'La note doit être entre 0 et 20' 
         });
       }
-      if (grade % 0.5 != 0) {
-        return res.status(400).json({ 
-          message: 'La note doit être un nombre entier ou demi-point' 
-        });
-      }
+      // Removed the half-point validation
+      // if (grade % 0.5 != 0) {
+      //   return res.status(400).json({ 
+      //     message: 'La note doit être un nombre entier ou demi-point' 
+      //   });
+      // }
       gradeDoc.grade = grade;
     }
     

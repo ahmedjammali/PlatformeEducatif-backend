@@ -18,8 +18,7 @@ const removeMarkdown = (text) => {
 // Send message to AI and get response
 const sendMessage = async (req, res) => {
   const startTime = Date.now();
-  console.log('🚀 Starting sendMessage at:', new Date().toISOString());
-  
+
   try {
     const { chatId } = req.params;
     const { message } = req.body;
@@ -31,7 +30,7 @@ const sendMessage = async (req, res) => {
     }
 
     const student = req.user;
-    console.log(`⏱️  Initial setup took: ${Date.now() - startTime}ms`);
+
 
     // Find chat with minimal fields first
     const chatStartTime = Date.now();
@@ -44,7 +43,7 @@ const sendMessage = async (req, res) => {
     if (!chat) {
       return res.status(404).json({ error: 'Chat not found' });
     }
-    console.log(`⏱️  Database query took: ${Date.now() - chatStartTime}ms`);
+
 
     // Add user message
     const userMessage = {
@@ -58,7 +57,7 @@ const sendMessage = async (req, res) => {
     const contextStartTime = Date.now();
     const systemPrompt = createSystemPrompt(student);
     const messages = prepareMessagesForAI(chat.messages, systemPrompt);
-    console.log(`⏱️  Context preparation took: ${Date.now() - contextStartTime}ms`);
+
 
     // Get AI response with timeout
     const aiStartTime = Date.now();
