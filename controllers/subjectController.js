@@ -113,7 +113,7 @@ const updateSubject = async (req, res) => {
   }
 };
 
-// Delete subject (Admin only) - Updated with cascade delete
+
 const deleteSubject = async (req, res) => {
   try {
     const { subjectId } = req.params;
