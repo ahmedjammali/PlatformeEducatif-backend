@@ -113,7 +113,7 @@ const updateSubject = async (req, res) => {
   }
 };
 
-// Delete subject (Admin only)
+// Delete subject (Admin only)llllll
 const deleteSubject = async (req, res) => {
   try {
     const { subjectId } = req.params;
