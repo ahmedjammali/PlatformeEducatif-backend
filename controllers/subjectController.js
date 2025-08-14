@@ -113,28 +113,37 @@ const updateSubject = async (req, res) => {
   }
 };
 
-// Delete subject (Admin only)
+// Delete subject (Admin only) - Updated with cascade delete
 const deleteSubject = async (req, res) => {
   try {
     const { subjectId } = req.params;
 
-    // Check if subject is being used in any class
-    const classesUsingSubject = await Class.findOne({
-      'teacherSubjects.subjects': subjectId
-    });
-
-    if (classesUsingSubject) {
-      return res.status(400).json({ 
-        message: 'Cannot delete subject. It is being used in one or more classes.' 
-      });
-    }
-
-    const deletedSubject = await Subject.findByIdAndDelete(subjectId);
-    if (!deletedSubject) {
+    // Check if subject exists
+    const subject = await Subject.findById(subjectId);
+    if (!subject) {
       return res.status(404).json({ message: 'Subject not found' });
     }
 
-    res.status(200).json({ message: 'Subject deleted successfully' });
+
+    const deletedGradesResult = await Grade.deleteMany({ subject: subjectId });
+    
+    // Also remove the subject from any classes that reference it
+    await Class.updateMany(
+      { 'teacherSubjects.subjects': subjectId },
+      { $pull: { 'teacherSubjects.$[].subjects': subjectId } }
+    );
+
+    // Now delete the subject
+    const deletedSubject = await Subject.findByIdAndDelete(subjectId);
+
+    res.status(200).json({ 
+      message: 'Subject deleted successfully',
+      deletedGrades: deletedGradesResult.deletedCount,
+      subject: deletedSubject
+    });
+
+    
+
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
