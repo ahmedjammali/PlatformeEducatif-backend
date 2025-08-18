@@ -172,8 +172,7 @@ notificationSchema.statics.getNotificationsForUser = async function(user, option
 
   // Check if user is admin - admins see all notifications
   if (user.role === 'admin') {
-    // Admin sees everything, no audience filtering needed
-    console.log('Admin user detected, showing all notifications');
+
   } else {
     // Filter based on user role and target audience
     const audienceConditions = [];

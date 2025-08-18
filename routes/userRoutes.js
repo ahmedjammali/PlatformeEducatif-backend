@@ -31,7 +31,7 @@ const validateUserCreation = (req, res, next) => {
 
   const validRoles = ['superadmin', 'admin', 'teacher', 'student'];
   if (!validRoles.includes(role)) {
-    return res.status(400).json({ 
+    return res.status(400).json({   
       message: 'Invalid role. Must be one of: ' + validRoles.join(', ') 
     });
   }
