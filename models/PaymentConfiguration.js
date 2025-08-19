@@ -1,3 +1,5 @@
+// Fixed PaymentConfiguration Schema
+
 const mongoose = require('mongoose');
 
 const paymentConfigurationSchema = new mongoose.Schema({
@@ -10,26 +12,20 @@ const paymentConfigurationSchema = new mongoose.Schema({
     type: String,
     required: true,
     match: /^\d{4}-\d{4}$/, // Validates format like "2024-2025"
-    default: function() {
-      const currentDate = new Date();
-      const currentYear = currentDate.getFullYear();
-      const nextYear = currentYear + 1;
-      return `${currentYear}-${nextYear}`;
-    }
   },
   // Payment amounts for different class groups
   paymentAmounts: {
-    école: { // 6eme, 5eme, 4eme, 3eme, 2nde, 1ere
+    école: { 
       type: Number,
       required: true,
       min: [0, 'Payment amount cannot be negative']
     },
-    college: { // 9eme, 8eme, 7eme
+    college: { 
       type: Number,
       required: true,
       min: [0, 'Payment amount cannot be negative']
     },
-    lycée: { // 4ᵉ année S, 3ᵉ année S, 2ᵉ année S, 1ʳᵉ année S
+    lycée: { 
       type: Number,
       required: true,
       min: [0, 'Payment amount cannot be negative']
@@ -98,18 +94,18 @@ const paymentConfigurationSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Compound index to ensure one active configuration per school per academic year
+// ✅ FIXED: Allow multiple configurations per school for different academic years
+// Remove the unique constraint that was preventing multiple configs
 paymentConfigurationSchema.index({ 
   school: 1, 
-  academicYear: 1, 
-  isActive: 1 
+  academicYear: 1
 }, { 
-  unique: true,
-  partialFilterExpression: { isActive: true }
+  unique: true  // ✅ One config per school per academic year (without isActive constraint)
 });
 
-// Index for efficient queries
-paymentConfigurationSchema.index({ school: 1, academicYear: 1 });
+// Additional indexes for efficient queries
+paymentConfigurationSchema.index({ school: 1 });
+paymentConfigurationSchema.index({ academicYear: 1 });
 paymentConfigurationSchema.index({ isActive: 1 });
 
 // Virtual to calculate total months automatically
@@ -140,24 +136,8 @@ paymentConfigurationSchema.pre('save', function(next) {
   next();
 });
 
-// Method to deactivate previous configurations
-paymentConfigurationSchema.methods.deactivatePrevious = async function() {
-  await this.constructor.updateMany(
-    {
-      school: this.school,
-      academicYear: this.academicYear,
-      _id: { $ne: this._id },
-      isActive: true
-    },
-    { 
-      isActive: false,
-      updatedAt: new Date()
-    }
-  );
-};
-
-// Static method to get active configuration
-paymentConfigurationSchema.statics.getActiveConfig = function(schoolId, academicYear) {
+// ✅ UPDATED: Method to get configuration for specific academic year
+paymentConfigurationSchema.statics.getConfigForYear = function(schoolId, academicYear) {
   return this.findOne({
     school: schoolId,
     academicYear: academicYear,

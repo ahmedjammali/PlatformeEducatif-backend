@@ -16,7 +16,8 @@ const {
   getPaymentReports,
   deletePaymentRecord,
   getPaymentStatsByMonth,
-  exportPaymentData
+  exportPaymentData,
+  deleteAllPaymentRecords
 } = require('../controllers/paymentController');
 
 const {
@@ -306,6 +307,11 @@ router.get('/export',
   validateAcademicYearQuery,
   exportPaymentData
 );
+
+router.delete('/bulk/delete-all',   isAdminOrHigher, 
+  deleteAllPaymentRecords
+
+  ),
 
 // Error handling middleware for this router
 router.use((err, req, res, next) => {

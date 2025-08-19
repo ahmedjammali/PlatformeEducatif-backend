@@ -55,52 +55,78 @@ const generatePaymentSchedule = (startMonth, endMonth, totalMonths, monthlyAmoun
   
   return schedule;
 };
-
-// Create or Update Payment Configuration
+// Fixed createOrUpdatePaymentConfig function
 const createOrUpdatePaymentConfig = async (req, res) => {
   try {
-    const { paymentAmounts, gracePeriod } = req.body;
+    const { 
+      academicYear,        // ✅ GET FROM REQUEST BODY
+      paymentAmounts, 
+      paymentSchedule,
+      gracePeriod,
+      annualPaymentDiscount 
+    } = req.body;
+    
     const schoolId = req.schoolId;
     const userId = req.userId;
     
-    // Get current academic year
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const academicYear = `${currentYear}-${currentYear + 1}`;
+    // ✅ USE THE ACADEMIC YEAR FROM REQUEST, NOT CURRENT YEAR
+    const targetYear = academicYear || (() => {
+      // Only fallback to current year if not provided
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      return `${currentYear}-${currentYear + 1}`;
+    })();
     
-    // Check if configuration already exists
+    console.log('Backend: Creating/updating config for year:', targetYear); // Debug log
+    
+    // Check if configuration already exists for this specific academic year
     let config = await PaymentConfiguration.findOne({
       school: schoolId,
-      academicYear: academicYear
+      academicYear: targetYear  // ✅ USE THE CORRECT YEAR
     });
     
     if (config) {
+      console.log('Backend: Updating existing config'); // Debug log
       // Update existing configuration
       config.paymentAmounts = paymentAmounts;
+      config.paymentSchedule = paymentSchedule;
       if (gracePeriod !== undefined) config.gracePeriod = gracePeriod;
+      if (annualPaymentDiscount !== undefined) config.annualPaymentDiscount = annualPaymentDiscount;
+      config.updatedBy = userId;
       config.updatedAt = new Date();
     } else {
+      console.log('Backend: Creating new config'); // Debug log
       // Create new configuration
       config = new PaymentConfiguration({
         school: schoolId,
-        academicYear: academicYear,
+        academicYear: targetYear,  // ✅ USE THE CORRECT YEAR
         paymentAmounts: paymentAmounts,
+        paymentSchedule: paymentSchedule,
         gracePeriod: gracePeriod || 5,
+        annualPaymentDiscount: annualPaymentDiscount || {
+          enabled: false,
+          percentage: 0,
+          amount: 0
+        },
         createdBy: userId
       });
-      console.log(config);
     }
 
     await config.save();
-    if (config.isNew) {
-      await config.deactivatePrevious();
-    }
+    
+    // ✅ REMOVE THIS LINE - Don't deactivate other configs for different years
+    // if (config.isNew) {
+    //   await config.deactivatePrevious();
+    // }
+    
+    console.log('Backend: Config saved successfully:', config.academicYear); // Debug log
     
     res.status(200).json({
       message: 'Payment configuration saved successfully',
       config: config
     });
   } catch (error) {
+    console.error('Backend error:', error); // Debug log
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
@@ -131,6 +157,7 @@ const getPaymentConfig = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+// Update the getAllStudentsWithPayments method in your paymentController.js
 
 // Get All Students with Payment Status - MAIN FUNCTION FOR ADMIN PAGE
 const getAllStudentsWithPayments = async (req, res) => {
@@ -138,7 +165,8 @@ const getAllStudentsWithPayments = async (req, res) => {
     const { 
       search, 
       paymentStatus, 
-      classGroup, 
+      classGroup,
+      classId,        // ADD THIS LINE
       academicYear, 
       page = 1, 
       limit = 50 
@@ -162,6 +190,11 @@ const getAllStudentsWithPayments = async (req, res) => {
         { name: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } }
       ];
+    }
+    
+    // ADD CLASS FILTER
+    if (classId) {
+      studentFilter.studentClass = classId;
     }
     
     const skip = (page - 1) * limit;
@@ -192,7 +225,7 @@ const getAllStudentsWithPayments = async (req, res) => {
     // Combine student data with payment info
     let studentsWithPayments = students.map(student => {
       const payment = paymentMap[student._id.toString()];
-      const classGrade = student.studentClass?.grade; // Use grade field instead of name
+      const classGrade = student.studentClass?.grade;
       const classGroupValue = classGrade ? getClassGroup(classGrade) : null;
       
       return {
@@ -216,7 +249,7 @@ const getAllStudentsWithPayments = async (req, res) => {
       };
     });
     
-    // Apply filters
+    // Apply filters (only class group filter now, since classId is already handled in student query)
     if (classGroup) {
       studentsWithPayments = studentsWithPayments.filter(s => s.classGroup === classGroup);
     }
@@ -1250,6 +1283,88 @@ const exportPaymentData = async (req, res) => {
   }
 };
 
+
+const deleteAllPaymentRecords = async (req, res) => {
+  try {
+    const schoolId = req.schoolId;
+    const userId = req.userId;
+    const { academicYear } = req.body;
+    
+    // Get current academic year if not specified
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const targetYear = academicYear || `${currentYear}-${currentYear + 1}`;
+    
+    console.log(`Starting bulk deletion for academic year: ${targetYear}, school: ${schoolId}`);
+    
+    // Find all payment records for the academic year and school
+    const paymentRecords = await StudentPayment.find({ 
+      school: schoolId,
+      academicYear: targetYear 
+    }).populate('student', 'name email');
+    
+    if (paymentRecords.length === 0) {
+      return res.status(404).json({
+        message: 'No payment records found for the specified academic year',
+        results: {
+          deleted: 0,
+          errors: []
+        }
+      });
+    }
+    
+    const results = {
+      deleted: 0,
+      errors: []
+    };
+    
+    // Delete each payment record
+    for (const record of paymentRecords) {
+      try {
+        await StudentPayment.findByIdAndDelete(record._id);
+        results.deleted++;
+        
+        console.log(`Deleted payment record for student: ${record.student?.name || 'Unknown'} (ID: ${record.student?._id})`);
+      } catch (error) {
+        console.error(`Failed to delete payment record for student ID: ${record.student?._id}`, error);
+        results.errors.push({
+          studentId: record.student?._id || record._id,
+          error: `Failed to delete payment record: ${error.message}`
+        });
+      }
+    }
+    
+    // Log the bulk deletion for audit purposes
+    console.log(`Bulk deletion completed for academic year ${targetYear}:`, {
+      deleted: results.deleted,
+      errors: results.errors.length,
+      timestamp: new Date().toISOString(),
+      userId: userId,
+      schoolId: schoolId
+    });
+    
+    // Send success response
+    res.status(200).json({
+      message: `Bulk deletion completed for academic year ${targetYear}. ${results.deleted} record(s) deleted successfully.`,
+      results: results
+    });
+
+  } catch (error) {
+    console.error('Error in bulk delete payment records:', error);
+    res.status(500).json({
+      message: 'Server error during bulk deletion',
+      error: error.message,
+      results: {
+        deleted: 0,
+        errors: [{
+          studentId: 'system',
+          error: `Server error: ${error.message}`
+        }]
+      }
+    });
+  }
+};
+
 module.exports = {
   createOrUpdatePaymentConfig,
   getPaymentConfig,
@@ -1264,5 +1379,6 @@ module.exports = {
   getPaymentReports,              // Generate various payment reports
   deletePaymentRecord,            // Delete payment record
   getPaymentStatsByMonth,         // Get monthly statistics
-  exportPaymentData               // Export payment data
+  exportPaymentData      , 
+  deleteAllPaymentRecords         // Export payment data
 };
