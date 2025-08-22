@@ -1,4 +1,4 @@
-// Fixed PaymentConfiguration Schema
+// Updated PaymentConfiguration Schema with Grade-specific pricing, Uniform, and Transportation
 
 const mongoose = require('mongoose');
 
@@ -13,25 +13,157 @@ const paymentConfigurationSchema = new mongoose.Schema({
     required: true,
     match: /^\d{4}-\d{4}$/, // Validates format like "2024-2025"
   },
-  // Payment amounts for different class groups
-  paymentAmounts: {
-    école: { 
-      type: Number,
-      required: true,
-      min: [0, 'Payment amount cannot be negative']
+  
+gradeAmounts: {
+  // ✅ UPDATED: Single Maternal grade
+  'Maternal': { 
+    type: Number,
+    required: true,
+    min: [0, 'Payment amount cannot be negative']
+  },
+  
+  // École grades (Primary) - unchanged
+  '1ère année primaire': { 
+    type: Number,
+    required: true,
+    min: [0, 'Payment amount cannot be negative']
+  },
+  '2ème année primaire': { 
+    type: Number,
+    required: true,
+    min: [0, 'Payment amount cannot be negative']
+  },
+  '3ème année primaire': { 
+    type: Number,
+    required: true,
+    min: [0, 'Payment amount cannot be negative']
+  },
+  '4ème année primaire': { 
+    type: Number,
+    required: true,
+    min: [0, 'Payment amount cannot be negative']
+  },
+  '5ème année primaire': { 
+    type: Number,
+    required: true,
+    min: [0, 'Payment amount cannot be negative']
+  },
+  '6ème année primaire': { 
+    type: Number,
+    required: true,
+    min: [0, 'Payment amount cannot be negative']
+  },
+  
+  // Collège (Middle School) grades
+  '7ème année': { 
+    type: Number,
+    required: true,
+    min: [0, 'Payment amount cannot be negative']
+  },
+  '8ème année': { 
+    type: Number,
+    required: true,
+    min: [0, 'Payment amount cannot be negative']
+  },
+  '9ème année': { 
+    type: Number,
+    required: true,
+    min: [0, 'Payment amount cannot be negative']
+  },
+  
+  // Lycée (High School) grades
+  '1ère année lycée': { 
+    type: Number,
+    required: true,
+    min: [0, 'Payment amount cannot be negative']
+  },
+  '2ème année lycée': { 
+    type: Number,
+    required: true,
+    min: [0, 'Payment amount cannot be negative']
+  },
+  '3ème année lycée': { 
+    type: Number,
+    required: true,
+    min: [0, 'Payment amount cannot be negative']
+  },
+  '4ème année lycée': { 
+    type: Number,
+    required: true,
+    min: [0, 'Payment amount cannot be negative']
+  }
+},
+
+  // ✅ NEW: Uniform configuration
+  uniform: {
+    enabled: {
+      type: Boolean,
+      default: true
     },
-    college: { 
+    price: {
       type: Number,
-      required: true,
-      min: [0, 'Payment amount cannot be negative']
+      required: function() { return this.uniform.enabled; },
+      min: [0, 'Uniform price cannot be negative'],
+      default: 0
     },
-    lycée: { 
-      type: Number,
-      required: true,
-      min: [0, 'Payment amount cannot be negative']
+    description: {
+      type: String,
+      trim: true,
+      default: 'Uniforme scolaire complet'
+    },
+    isOptional: {
+      type: Boolean,
+      default: true // Students can choose whether to buy or not
     }
   },
-  // Payment schedule settings
+
+  // ✅ NEW: Transportation configuration
+  transportation: {
+    enabled: {
+      type: Boolean,
+      default: true
+    },
+    tariffs: {
+      close: {
+        enabled: {
+          type: Boolean,
+          default: true
+        },
+        monthlyPrice: {
+          type: Number,
+          required: function() { return this.transportation.enabled && this.transportation.tariffs.close.enabled; },
+          min: [0, 'Transportation price cannot be negative'],
+          default: 0
+        },
+        description: {
+          type: String,
+          default: 'Transport scolaire - Zone proche'
+        }
+      },
+      far: {
+        enabled: {
+          type: Boolean,
+          default: true
+        },
+        monthlyPrice: {
+          type: Number,
+          required: function() { return this.transportation.enabled && this.transportation.tariffs.far.enabled; },
+          min: [0, 'Transportation price cannot be negative'],
+          default: 0
+        },
+        description: {
+          type: String,
+          default: 'Transport scolaire - Zone éloignée'
+        }
+      }
+    },
+    isOptional: {
+      type: Boolean,
+      default: true // Students can choose whether to use transportation or not
+    }
+  },
+
+  // Payment schedule settings (same as before)
   paymentSchedule: {
     startMonth: {
       type: Number,
@@ -52,6 +184,7 @@ const paymentConfigurationSchema = new mongoose.Schema({
       max: [12, 'Total months cannot exceed 12']
     }
   },
+  
   // Grace period for late payments (in days)
   gracePeriod: {
     type: Number,
@@ -59,6 +192,7 @@ const paymentConfigurationSchema = new mongoose.Schema({
     min: [0, 'Grace period cannot be negative'],
     max: [30, 'Grace period cannot exceed 30 days']
   },
+  
   // Discount settings for annual payments
   annualPaymentDiscount: {
     enabled: {
@@ -77,6 +211,7 @@ const paymentConfigurationSchema = new mongoose.Schema({
       min: [0, 'Discount amount cannot be negative']
     }
   },
+  
   isActive: {
     type: Boolean,
     default: true
@@ -94,19 +229,44 @@ const paymentConfigurationSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// ✅ FIXED: Allow multiple configurations per school for different academic years
-// Remove the unique constraint that was preventing multiple configs
+// Indexes
 paymentConfigurationSchema.index({ 
   school: 1, 
   academicYear: 1
 }, { 
-  unique: true  // ✅ One config per school per academic year (without isActive constraint)
+  unique: true
 });
 
-// Additional indexes for efficient queries
 paymentConfigurationSchema.index({ school: 1 });
 paymentConfigurationSchema.index({ academicYear: 1 });
 paymentConfigurationSchema.index({ isActive: 1 });
+
+// ✅ NEW: Helper method to get grade category
+paymentConfigurationSchema.statics.getGradeCategory = function(grade) {
+  const maternelleGrades = ['Maternal']; // ✅ UPDATED
+  const primaireGrades = ['1ère année primaire', '2ème année primaire', '3ème année primaire', '4ème année primaire', '5ème année primaire', '6ème année primaire'];
+  const secondaireGrades = ['7ème année', '8ème année', '9ème année', '1ère année lycée', '2ème année lycée', '3ème année lycée', '4ème année lycée'];
+  
+  if (maternelleGrades.includes(grade)) return 'maternelle';
+  if (primaireGrades.includes(grade)) return 'primaire';
+  if (secondaireGrades.includes(grade)) return 'secondaire';
+  
+  return 'unknown';
+};
+
+// ✅ NEW: Method to get available grades list
+paymentConfigurationSchema.statics.getAvailableGrades = function() {
+  return [
+    // Maternal
+    'Maternal', // ✅ UPDATED
+    // Primaire
+    '1ère année primaire', '2ème année primaire', '3ème année primaire', 
+    '4ème année primaire', '5ème année primaire', '6ème année primaire',
+    // Collège + Lycée
+    '7ème année', '8ème année', '9ème année', 
+    '1ère année lycée', '2ème année lycée', '3ème année lycée', '4ème année lycée'
+  ];
+};
 
 // Virtual to calculate total months automatically
 paymentConfigurationSchema.virtual('calculatedTotalMonths').get(function() {
@@ -130,19 +290,52 @@ paymentConfigurationSchema.pre('save', function(next) {
   
   // Set updatedBy if this is an update
   if (this.isModified() && !this.isNew) {
-    this.updatedBy = this.createdBy; // You might want to pass this from the controller
+    this.updatedBy = this.createdBy;
   }
   
   next();
 });
 
-// ✅ UPDATED: Method to get configuration for specific academic year
+// Method to get configuration for specific academic year
 paymentConfigurationSchema.statics.getConfigForYear = function(schoolId, academicYear) {
   return this.findOne({
     school: schoolId,
     academicYear: academicYear,
     isActive: true
   }).populate('createdBy updatedBy', 'name email');
+};
+
+// ✅ NEW: Method to get payment amount for a specific grade
+paymentConfigurationSchema.methods.getAmountForGrade = function(grade) {
+  const availableGrades = this.constructor.getAvailableGrades();
+  if (!availableGrades.includes(grade)) {
+    throw new Error(`Invalid grade: ${grade}`);
+  }
+  return this.gradeAmounts[grade] || 0;
+};
+
+// ✅ NEW: Method to calculate total student cost
+paymentConfigurationSchema.methods.calculateStudentTotalCost = function(grade, hasUniform = false, transportationType = null) {
+  let total = 0;
+  
+  // Add tuition fees
+  total += this.getAmountForGrade(grade);
+  
+  // Add uniform cost if selected
+  if (hasUniform && this.uniform.enabled) {
+    total += this.uniform.price;
+  }
+  
+  // Add transportation cost if selected (monthly cost * total months)
+  if (transportationType && this.transportation.enabled) {
+    const transportCost = transportationType === 'close' 
+      ? this.transportation.tariffs.close.monthlyPrice 
+      : this.transportation.tariffs.far.monthlyPrice;
+    
+    total += (transportCost * this.paymentSchedule.totalMonths);
+  }
+  
+  return total;
 };
 
 // Method to validate payment schedule consistency
@@ -155,14 +348,6 @@ paymentConfigurationSchema.methods.validateSchedule = function() {
   }
   
   return calculatedMonths === totalMonths;
-};
-
-// Method to get payment amount for a specific class group
-paymentConfigurationSchema.methods.getAmountForClassGroup = function(classGroup) {
-  if (!['école', 'college', 'lycée'].includes(classGroup)) {
-    throw new Error('Invalid class group');
-  }
-  return this.paymentAmounts[classGroup];
 };
 
 module.exports = mongoose.model('PaymentConfiguration', paymentConfigurationSchema);
