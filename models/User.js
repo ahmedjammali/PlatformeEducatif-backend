@@ -28,9 +28,7 @@ const userSchema = new mongoose.Schema({
   school: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'School',
-    required: function() {
-      return this.role !== 'superadmin';
-    }
+    required: false // SuperAdmin will get school reference after creating school
   },
   // For teachers: classes they teach with subjects
   teachingClasses: [{

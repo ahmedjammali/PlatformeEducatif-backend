@@ -31,13 +31,16 @@ const createSchool = async (req, res) => {
 
     const savedSchool = await school.save();
 
+    // Update the superadmin user with school reference
+    await User.findByIdAndUpdate(req.userId, { school: savedSchool._id });
+
     // Then create admin user with school reference
     const adminUser = new User({
       name: adminName,
       email: adminEmail,
       password: adminPassword,
       role: 'admin',
-      school: savedSchool._id, // Now we have the school ID
+      school: savedSchool._id,
       createdBy: req.userId
     });
 
@@ -131,8 +134,6 @@ const toggleSchoolAccess = async (req, res) => {
   }
 };
 
-
-
 // Update school name (Admin or SuperAdmin only)
 const updateSchoolName = async (req, res) => {
   try {
@@ -187,11 +188,9 @@ const updateSchoolName = async (req, res) => {
   }
 };
 
-
-
 module.exports = {
   createSchool,
   getSchool,
-  toggleSchoolAccess , 
+  toggleSchoolAccess,
   updateSchoolName
 };

@@ -18,19 +18,20 @@ const {
 const {
   authenticate,
   isAdmin,
+  isAdminOrHigher,
   isTeacherOrHigher
 } = require('../middleware/auth');
 
 router.use(authenticate);
 
 // Admin only routes
-router.post('/', isAdmin, createClass);
-router.put('/:classId', isAdmin, updateClass);
-router.delete('/:classId', isAdmin, deleteClass);
-router.post('/:classId/students', isAdmin, addStudentToClass);
-router.delete('/:classId/students/:studentId', isAdmin, removeStudentFromClass);
-router.post('/:classId/teachers', isAdmin, assignTeacherToSubjects);
-router.delete('/:classId/teachers/:teacherId', isAdmin, removeTeacherFromClass);
+router.post('/', isAdminOrHigher, createClass);
+router.put('/:classId', isAdminOrHigher, updateClass);
+router.delete('/:classId', isAdminOrHigher, deleteClass);
+router.post('/:classId/students', isAdminOrHigher, addStudentToClass);
+router.delete('/:classId/students/:studentId', isAdminOrHigher, removeStudentFromClass);
+router.post('/:classId/teachers', isAdminOrHigher, assignTeacherToSubjects);
+router.delete('/:classId/teachers/:teacherId', isAdminOrHigher, removeTeacherFromClass);
 
 // Teacher or higher (and students for their own class)
 router.get('/', getAllClasses);

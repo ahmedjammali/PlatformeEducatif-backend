@@ -5,8 +5,7 @@ const jwt = require('jsonwebtoken');
 const Class = require('../models/Class');
 const Exercise = require('../models/Exercise');
 const Grade = require('../models/Grade');
-  const StudentProgress = require('../models/StudentProgress');
-
+const StudentProgress = require('../models/StudentProgress');
 
 // Helper function to generate JWT token
 const generateToken = (userId) => {
@@ -61,8 +60,7 @@ const login = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
-// Create User (Admin creates teachers/students, SuperAdmin creates admin)
+// Create User (Admin creates teachers/students, SuperAdmin creates any role)
 const createUser = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
@@ -70,17 +68,14 @@ const createUser = async (req, res) => {
     const creatorRole = req.userRole;
 
     // Validation: Check role hierarchy
-    if (creatorRole === 'superadmin' && role !== 'admin') {
-      return res.status(403).json({ 
-        message: 'SuperAdmin can only create admin accounts' 
-      });
-    }
-    
     if (creatorRole === 'admin' && !['teacher', 'student'].includes(role)) {
       return res.status(403).json({ 
         message: 'Admin can only create teacher and student accounts' 
       });
     }
+
+    // If creator is superadmin → no restriction, they can create any role
+    // (so no extra check needed here)
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -90,21 +85,17 @@ const createUser = async (req, res) => {
       });
     }
 
-    // Get school
+    // Get school (if needed) - for superadmin/admin logic
     let schoolId = req.schoolId;
-    if (role === 'admin') {
-      const school = await School.findOne();
-      schoolId = school?._id;
-    }
 
     // Create user
     const newUser = new User({
       name,
       email,
-      password,
+      password, // make sure to hash it before saving
       role,
       createdBy: creatorId,
-      school: role !== 'superadmin' ? schoolId : undefined
+      school: schoolId
     });
 
     const savedUser = await newUser.save();
@@ -130,20 +121,20 @@ const getAllUsers = async (req, res) => {
     const userRole = req.userRole;
     const schoolId = req.schoolId;
     
-    let filter = {};
+    let filter = { school: schoolId };
 
-    // SuperAdmin sees all users
-    // Admin sees only users in their school
-    // Teachers see only students
-    if (userRole === 'admin' ) {
-      filter.school = schoolId;
+    if (userRole === 'superadmin') {
+      // SuperAdmin → sees all roles in their school
       if (role) filter.role = role;
+
+    } else if (userRole === 'admin') {
+      // Admin → sees only teacher & student (not other admins/superadmins)
+      filter.role = role ? role : { $in: ['teacher', 'student'] };
+
     } else if (userRole === 'teacher') {
-      filter.school = schoolId;
+      // Teacher → sees only students
       filter.role = 'student';
     }
-
-    if (role) filter.role = role;
 
     const skip = (page - 1) * limit;
 
@@ -231,22 +222,21 @@ const updateUser = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
-
 };
-
 
 // Delete user
 const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
+    const userRole = req.userRole;
 
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Prevent deleting the only admin
-    if (user.role === 'admin') {
+    // SuperAdmin can delete admins, but prevent deleting the only admin unless there's another admin
+    if (user.role === 'admin' && userRole === 'superadmin') {
       const adminCount = await User.countDocuments({ role: 'admin' });
       if (adminCount === 1) {
         return res.status(400).json({ 
@@ -264,12 +254,10 @@ const deleteUser = async (req, res) => {
       );
       
       // Find all exercises created by this teacher
-
       const teacherExercises = await Exercise.find({ createdBy: id });
       const exerciseIds = teacherExercises.map(exercise => exercise._id);
       
       // Delete all student progress associated with these exercises
-
       const deletedProgress = await StudentProgress.deleteMany({ 
         exercise: { $in: exerciseIds } 
       });
@@ -288,10 +276,7 @@ const deleteUser = async (req, res) => {
         );
       }
       
-
-
       const deletedGrades = await Grade.deleteMany({ student: id });
-      
       const deletedProgress = await StudentProgress.deleteMany({ student: id });
       
       console.log(`Deleted ${deletedGrades.deletedCount} grades and ${deletedProgress.deletedCount} progress records for student ${user.name}`);
@@ -308,6 +293,7 @@ const deleteUser = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+
 // Change password
 const changePassword = async (req, res) => {
   try {
