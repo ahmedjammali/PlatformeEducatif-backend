@@ -40,7 +40,7 @@ const createClass = async (req, res) => {
 // Get all classes
 const getAllClasses = async (req, res) => {
   try {
-    const { page = 1, limit = 20, grade, academicYear } = req.query;
+    const { page = 1, limit = 100, grade, academicYear } = req.query;
     const userRole = req.userRole;
     const userId = req.userId;
 
