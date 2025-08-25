@@ -18,16 +18,14 @@ const createSuperAdmin = async () => {
     
     if (!existingSuperAdmin) {
       const superAdmin = new User({
-        name: "Super Admin",
-        email: "superadmin@platform.com",
-        password: "superadmin123",
+        name: "Walid Khalfaoui",
+        email: "WalidKhalfaoui@ons-school.com",
+        password: "superadmin123", // Ensure to hash passwords in production
         role: "superadmin"
       });
 
       await superAdmin.save();
-      console.log('SuperAdmin created successfully');
-      console.log('Email: superadmin@platform.com');
-      console.log('Password: superadmin123');
+
     }
   } catch (error) {
     console.error('Error creating SuperAdmin:', error);

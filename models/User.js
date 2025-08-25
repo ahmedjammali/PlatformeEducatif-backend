@@ -12,7 +12,10 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: true,
+    required: function() {
+      // Password is required for superadmin and admin only
+      return ['superadmin', 'admin'].includes(this.role);
+    },
     minlength: 6
   },
   name: {
@@ -30,6 +33,39 @@ const userSchema = new mongoose.Schema({
     ref: 'School',
     required: false // SuperAdmin will get school reference after creating school
   },
+  
+  // Teacher-specific fields
+  phoneNumber: {
+    type: String,
+    required: function() {
+      return this.role === 'teacher';
+    },
+    trim: true
+  },
+  
+  // Student-specific fields
+  parentName: {
+    type: String,
+    required: function() {
+      return this.role === 'student';
+    },
+    trim: true
+  },
+  parentCin: {
+    type: String,
+    required: function() {
+      return this.role === 'student';
+    },
+    trim: true
+  },
+  parentPhoneNumber: {
+    type: String,
+    required: function() {
+      return this.role === 'student';
+    },
+    trim: true
+  },
+  
   // For teachers: classes they teach with subjects
   teachingClasses: [{
     class: {
@@ -41,11 +77,13 @@ const userSchema = new mongoose.Schema({
       ref: 'Subject'
     }]
   }],
+  
   // For students: class they belong to
   studentClass: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Class'
   },
+  
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -53,20 +91,20 @@ const userSchema = new mongoose.Schema({
       return this.role !== 'superadmin';
     }
   }
-},
- {
+}, {
   timestamps: true
 });
 
-// Hash password before saving
+// Hash password before saving (only if password exists)
 userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
+  if (!this.isModified('password') || !this.password) return next();
   this.password = await bcrypt.hash(this.password, 10);
   next();
 });
 
 // Method to compare password
 userSchema.methods.comparePassword = async function(password) {
+  if (!this.password) return false;
   return await bcrypt.compare(password, this.password);
 };
 

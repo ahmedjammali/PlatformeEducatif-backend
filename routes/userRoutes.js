@@ -23,7 +23,7 @@ const {
 const validateUserCreation = (req, res, next) => {
   const { name, email, password, role } = req.body;
   
-  if (!name || !email || !password || !role) {
+  if (!name || !email  || !role) {
     return res.status(400).json({ 
       message: 'Name, email, password, and role are required' 
     });
@@ -36,11 +36,7 @@ const validateUserCreation = (req, res, next) => {
     });
   }
 
-  if (password.length < 6) {
-    return res.status(400).json({ 
-      message: 'Password must be at least 6 characters long' 
-    });
-  }
+
 
   next();
 };

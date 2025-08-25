@@ -25,10 +25,26 @@ const login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // Check password
-    const isValidPassword = await user.comparePassword(password);
-    if (!isValidPassword) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+    // Check password - for admin/superadmin roles
+    if (['admin', 'superadmin'].includes(user.role)) {
+      if (!password) {
+        return res.status(401).json({ message: 'Password is required for admin accounts' });
+      }
+      const isValidPassword = await user.comparePassword(password);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: 'Invalid email or password' });
+      }
+    } else {
+      // For teacher/student, check password only if they have one
+      if (user.password && password) {
+        const isValidPassword = await user.comparePassword(password);
+        if (!isValidPassword) {
+          return res.status(401).json({ message: 'Invalid email or password' });
+        }
+      } else if (user.password && !password) {
+        return res.status(401).json({ message: 'Password is required' });
+      }
+      // If no password set for teacher/student, allow login without password
     }
 
     // Check if user has access
@@ -48,7 +64,13 @@ const login = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
-      school: user.school
+      school: user.school,
+      ...(user.role === 'teacher' && { phoneNumber: user.phoneNumber }),
+      ...(user.role === 'student' && { 
+        parentName: user.parentName,
+        parentCin: user.parentCin,
+        parentPhoneNumber: user.parentPhoneNumber
+      })
     };
 
     res.status(200).json({
@@ -60,10 +82,20 @@ const login = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+
 // Create User (Admin creates teachers/students, SuperAdmin creates any role)
 const createUser = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { 
+      name, 
+      email, 
+      password, 
+      role, 
+      phoneNumber,
+      parentName,
+      parentCin,
+      parentPhoneNumber
+    } = req.body;
     const creatorId = req.userId;
     const creatorRole = req.userRole;
 
@@ -74,8 +106,29 @@ const createUser = async (req, res) => {
       });
     }
 
-    // If creator is superadmin → no restriction, they can create any role
-    // (so no extra check needed here)
+    // Validate required fields based on role
+    if (role === 'teacher') {
+      if (!phoneNumber) {
+        return res.status(400).json({ 
+          message: 'Phone number is required for teacher accounts' 
+        });
+      }
+    }
+
+    if (role === 'student') {
+      if (!parentName || !parentCin || !parentPhoneNumber) {
+        return res.status(400).json({ 
+          message: 'Parent name, CIN, and phone number are required for student accounts' 
+        });
+      }
+    }
+
+    // Password validation for admin roles
+    if (['admin', 'superadmin'].includes(role) && !password) {
+      return res.status(400).json({ 
+        message: 'Password is required for admin accounts' 
+      });
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -88,26 +141,51 @@ const createUser = async (req, res) => {
     // Get school (if needed) - for superadmin/admin logic
     let schoolId = req.schoolId;
 
-    // Create user
-    const newUser = new User({
+    // Create user object with role-specific fields
+    const userData = {
       name,
       email,
-      password, // make sure to hash it before saving
       role,
       createdBy: creatorId,
       school: schoolId
-    });
+    };
 
+    // Add password only if provided
+    if (password) {
+      userData.password = password;
+    }
+
+    // Add role-specific fields
+    if (role === 'teacher') {
+      userData.phoneNumber = phoneNumber;
+    }
+
+    if (role === 'student') {
+      userData.parentName = parentName;
+      userData.parentCin = parentCin;
+      userData.parentPhoneNumber = parentPhoneNumber;
+    }
+
+    const newUser = new User(userData);
     const savedUser = await newUser.save();
+
+    // Response without password
+    const userResponse = {
+      id: savedUser._id,
+      name: savedUser.name,
+      email: savedUser.email,
+      role: savedUser.role,
+      ...(savedUser.role === 'teacher' && { phoneNumber: savedUser.phoneNumber }),
+      ...(savedUser.role === 'student' && { 
+        parentName: savedUser.parentName,
+        parentCin: savedUser.parentCin,
+        parentPhoneNumber: savedUser.parentPhoneNumber
+      })
+    };
 
     res.status(201).json({
       message: `${role} account created successfully`,
-      user: {
-        id: savedUser._id,
-        name: savedUser.name,
-        email: savedUser.email,
-        role: savedUser.role
-      }
+      user: userResponse
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -188,7 +266,20 @@ const getUserById = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email } = req.body;
+    const { 
+      name, 
+      email, 
+      phoneNumber, 
+      parentName, 
+      parentCin, 
+      parentPhoneNumber 
+    } = req.body;
+
+    // Get the user to check their role
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
 
     // Check if email is being updated and already exists
     if (email) {
@@ -204,6 +295,17 @@ const updateUser = async (req, res) => {
     const updates = {};
     if (name) updates.name = name;
     if (email) updates.email = email;
+
+    // Add role-specific updates
+    if (user.role === 'teacher' && phoneNumber) {
+      updates.phoneNumber = phoneNumber;
+    }
+
+    if (user.role === 'student') {
+      if (parentName) updates.parentName = parentName;
+      if (parentCin) updates.parentCin = parentCin;
+      if (parentPhoneNumber) updates.parentPhoneNumber = parentPhoneNumber;
+    }
 
     const updatedUser = await User.findByIdAndUpdate(
       id,
@@ -305,10 +407,15 @@ const changePassword = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Verify current password
-    const isValidPassword = await user.comparePassword(currentPassword);
-    if (!isValidPassword) {
-      return res.status(400).json({ message: 'Current password is incorrect' });
+    // If user has a current password, verify it
+    if (user.password) {
+      if (!currentPassword) {
+        return res.status(400).json({ message: 'Current password is required' });
+      }
+      const isValidPassword = await user.comparePassword(currentPassword);
+      if (!isValidPassword) {
+        return res.status(400).json({ message: 'Current password is incorrect' });
+      }
     }
 
     // Update password
@@ -316,6 +423,34 @@ const changePassword = async (req, res) => {
     await user.save();
 
     res.status(200).json({ message: 'Password changed successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Set password for users who don't have one (teachers/students)
+const setPassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Only allow setting password for teacher/student roles
+    if (!['teacher', 'student'].includes(user.role)) {
+      return res.status(403).json({ 
+        message: 'Password setting is only allowed for teachers and students' 
+      });
+    }
+
+    // Set password
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json({ message: 'Password set successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -345,5 +480,6 @@ module.exports = {
   updateUser,
   deleteUser,
   changePassword,
+  setPassword,
   getProfile
 };
