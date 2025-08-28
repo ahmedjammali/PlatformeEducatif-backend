@@ -22,6 +22,8 @@
     exportPaymentData,
     deleteAllPaymentRecords , 
     updatePaymentRecordComponents,
+    applyStudentDiscount,
+    removeStudentDiscount
   } = require('../controllers/paymentController');
 
   const {
@@ -312,6 +314,24 @@
     next();
   };
 
+  const validateDiscount = (req, res, next) => {
+  const { discountType, percentage } = req.body;
+  
+  if (!discountType || !['monthly', 'annual'].includes(discountType)) {
+    return res.status(400).json({ 
+      message: 'discountType must be either "monthly" or "annual"' 
+    });
+  }
+  
+  if (percentage === undefined || percentage < 0 || percentage > 100) {
+    return res.status(400).json({ 
+      message: 'percentage must be between 0 and 100' 
+    });
+  }
+
+  next();
+};
+
   // Apply authentication to all routes
   router.use(authenticate);
 
@@ -451,6 +471,21 @@
     validateAcademicYearQuery,
     exportPaymentData
   );
+
+  router.post('/student/:studentId/discount', 
+  isAdminOrHigher, 
+  validateStudentId,
+  validateDiscount,
+  applyStudentDiscount
+);
+
+// Remove discount from student
+router.delete('/student/:studentId/discount', 
+  isAdminOrHigher, 
+  validateStudentId,
+  validateAcademicYearQuery,
+  removeStudentDiscount
+);
 
   // ✅ NEW: Get available grades endpoint
   router.get('/grades', 

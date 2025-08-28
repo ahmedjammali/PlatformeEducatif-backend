@@ -201,15 +201,14 @@ const getPaymentConfig = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
-// ✅ UPDATED: Get All Students with Payment Status
+// ✅ UPDATED: Get All Students with Payment Status - Now includes discount
 const getAllStudentsWithPayments = async (req, res) => {
   try {
     const { 
       search, 
       paymentStatus, 
-      gradeCategory,    // ✅ NEW: Filter by grade category
-      grade,           // ✅ NEW: Filter by specific grade
+      gradeCategory,    
+      grade,           
       classId,
       academicYear, 
       page = 1, 
@@ -290,7 +289,16 @@ const getAllStudentsWithPayments = async (req, res) => {
           tuitionMonthlyPayments: payment.tuitionMonthlyPayments,
           uniform: payment.uniform,
           transportation: payment.transportation,
-          academicYear: payment.academicYear
+          academicYear: payment.academicYear,
+          // ✅ FIXED: Add discount field to the response
+          discount: payment.discount || {
+            enabled: false,
+            type: undefined,
+            percentage: undefined,
+            appliedBy: undefined,
+            appliedDate: undefined,
+            notes: undefined
+          }
         } : null,
         hasPaymentRecord: !!payment
       };
@@ -328,7 +336,6 @@ const getAllStudentsWithPayments = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 // ✅ UPDATED: Generate Payment Record for Existing Student
 const generatePaymentForStudent = async (req, res) => {
   try {
@@ -1982,7 +1989,8 @@ const getPaymentStatsByMonth = async (req, res) => {
   }
 };
 
-// ✅ UPDATED: Export Payment Data to CSV format
+// Replace the existing export function in the controller with this updated version
+
 const exportPaymentData = async (req, res) => {
   try {
     const schoolId = req.schoolId;
@@ -2027,6 +2035,9 @@ const exportPaymentData = async (req, res) => {
         'Tuition Total Amount': payment.totalAmounts.tuition,
         'Tuition Paid Amount': payment.paidAmounts.tuition,
         'Tuition Remaining Amount': payment.remainingAmounts.tuition,
+        'Discount Applied': payment.discount.enabled ? 'Yes' : 'No',
+        'Discount Type': payment.discount.enabled ? payment.discount.type : 'N/A',
+        'Discount Percentage': payment.discount.enabled ? `${payment.discount.percentage}%` : 'N/A',
         'Tuition Status': payment.componentStatus.tuition,
         'Payment Type': payment.paymentType,
         'Academic Year': payment.academicYear,
@@ -2077,6 +2088,9 @@ const exportPaymentData = async (req, res) => {
         'Total Amount': payment.totalAmounts.grandTotal,
         'Paid Amount': payment.paidAmounts.grandTotal,
         'Remaining Amount': payment.remainingAmounts.grandTotal,
+        'Discount Applied': payment.discount.enabled ? 'Yes' : 'No',
+        'Discount Type': payment.discount.enabled ? payment.discount.type : 'N/A',
+        'Discount Percentage': payment.discount.enabled ? `${payment.discount.percentage}%` : 'N/A',
         'Overall Status': payment.overallStatus,
         'Tuition Status': payment.componentStatus.tuition,
         'Uniform Purchased': payment.uniform.purchased ? 'Yes' : 'No',
@@ -2100,7 +2114,6 @@ const exportPaymentData = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 // Delete All Payment Records
 const deleteAllPaymentRecords = async (req, res) => {
   try {
@@ -2393,6 +2406,182 @@ const updatePaymentRecordComponents = async (req, res) => {
   }
 }
 
+
+const applyStudentDiscount = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { 
+      discountType,    // 'monthly' or 'annual'
+      percentage,      // 0-100
+      notes 
+    } = req.body;
+    const schoolId = req.schoolId;
+    const userId = req.userId;
+    const { academicYear } = req.query;
+    
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const targetYear = academicYear || `${currentYear}-${currentYear + 1}`;
+    
+    const paymentRecord = await StudentPayment.findOne({
+      student: studentId,
+      school: schoolId,
+      academicYear: targetYear
+    });
+    
+    if (!paymentRecord) {
+      return res.status(404).json({ 
+        message: 'Payment record not found' 
+      });
+    }
+    
+    if (paymentRecord.annualTuitionPayment.isPaid) {
+      return res.status(400).json({ 
+        message: 'Cannot apply discount - annual payment already made' 
+      });
+    }
+    
+    // Calculate discount amounts
+    const originalTuitionAmount = paymentRecord.tuitionFees.amount;
+    const discountAmount = (originalTuitionAmount * percentage) / 100;
+    const newTuitionAmount = originalTuitionAmount - discountAmount;
+    
+    // Apply discount
+    paymentRecord.discount = {
+      enabled: true,
+      type: discountType,
+      percentage: percentage,
+      appliedBy: userId,
+      appliedDate: new Date(),
+      notes: notes
+    };
+    
+    // Update tuition amounts
+    paymentRecord.tuitionFees.amount = newTuitionAmount;
+    paymentRecord.totalAmounts.tuition = newTuitionAmount;
+    paymentRecord.totalAmounts.grandTotal = newTuitionAmount + paymentRecord.totalAmounts.uniform + paymentRecord.totalAmounts.transportation;
+    
+    if (discountType === 'monthly') {
+      // Update monthly payments
+      const newMonthlyAmount = newTuitionAmount / paymentRecord.tuitionMonthlyPayments.length;
+      paymentRecord.tuitionFees.monthlyAmount = newMonthlyAmount;
+      
+      paymentRecord.tuitionMonthlyPayments.forEach(payment => {
+        if (payment.status === 'pending') {
+          payment.amount = newMonthlyAmount;
+        }
+      });
+    }
+    
+    paymentRecord.calculateRemainingAmounts();
+    paymentRecord.updateOverallStatus();
+    
+    await paymentRecord.save();
+    
+    res.status(200).json({
+      message: 'Discount applied successfully',
+      discount: {
+        type: discountType,
+        percentage: percentage,
+        amount: discountAmount,
+        originalAmount: originalTuitionAmount,
+        newAmount: newTuitionAmount
+      },
+      paymentRecord: paymentRecord
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+const removeStudentDiscount = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const schoolId = req.schoolId;
+    const { academicYear } = req.query;
+    
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const targetYear = academicYear || `${currentYear}-${currentYear + 1}`;
+    
+    const paymentRecord = await StudentPayment.findOne({
+      student: studentId,
+      school: schoolId,
+      academicYear: targetYear
+    });
+    
+    if (!paymentRecord) {
+      return res.status(404).json({ 
+        message: 'Payment record not found' 
+      });
+    }
+    
+    if (!paymentRecord.discount.enabled) {
+      return res.status(400).json({ 
+        message: 'No discount applied to remove' 
+      });
+    }
+    
+    if (paymentRecord.annualTuitionPayment.isPaid) {
+      return res.status(400).json({ 
+        message: 'Cannot remove discount - annual payment already made' 
+      });
+    }
+    
+    // Get configuration to restore original amounts
+    const config = await PaymentConfiguration.findOne({
+      school: schoolId,
+      academicYear: targetYear,
+      isActive: true
+    });
+    
+    if (!config) {
+      return res.status(404).json({ 
+        message: 'Payment configuration not found' 
+      });
+    }
+    
+    // Restore original amounts
+    const originalTuitionAmount = config.getAmountForGrade(paymentRecord.grade);
+    const originalMonthlyAmount = originalTuitionAmount / paymentRecord.tuitionMonthlyPayments.length;
+    
+    paymentRecord.tuitionFees.amount = originalTuitionAmount;
+    paymentRecord.tuitionFees.monthlyAmount = originalMonthlyAmount;
+    paymentRecord.totalAmounts.tuition = originalTuitionAmount;
+    paymentRecord.totalAmounts.grandTotal = originalTuitionAmount + paymentRecord.totalAmounts.uniform + paymentRecord.totalAmounts.transportation;
+    
+    // Update monthly payments
+    paymentRecord.tuitionMonthlyPayments.forEach(payment => {
+      if (payment.status === 'pending') {
+        payment.amount = originalMonthlyAmount;
+      }
+    });
+    
+    // Remove discount
+    paymentRecord.discount = {
+      enabled: false,
+      type: null,
+      percentage: 0,
+      appliedBy: null,
+      appliedDate: null,
+      notes: null
+    };
+    
+    paymentRecord.calculateRemainingAmounts();
+    paymentRecord.updateOverallStatus();
+    
+    await paymentRecord.save();
+    
+    res.status(200).json({
+      message: 'Discount removed successfully',
+      paymentRecord: paymentRecord
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+
 module.exports = {
   createOrUpdatePaymentConfig,
   getPaymentConfig,
@@ -2411,5 +2600,7 @@ module.exports = {
   getPaymentStatsByMonth,
   exportPaymentData,
   deleteAllPaymentRecords,
-  updatePaymentRecordComponents,           
+  updatePaymentRecordComponents,         
+  applyStudentDiscount,
+  removeStudentDiscount  
 };

@@ -301,6 +301,37 @@ grade: {
       }
     }
   },
+  
+  discount: {
+  enabled: {
+    type: Boolean,
+    default: false
+  },
+  type: {
+    type: String,
+    enum: ['monthly', 'annual'],
+    required: function() { return this.discount.enabled; }
+  },
+  percentage: {
+    type: Number,
+    min: 0,
+    max: 100,
+    required: function() { return this.discount.enabled; }
+  },
+  appliedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: function() { return this.discount.enabled; }
+  },
+  appliedDate: {
+    type: Date,
+    required: function() { return this.discount.enabled; }
+  },
+  notes: {
+    type: String,
+    trim: true
+  }
+  },
 
   // ✅ UPDATED: Annual payment details (for tuition only)
   annualTuitionPayment: {

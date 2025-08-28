@@ -378,24 +378,37 @@ const deleteUser = async (req, res) => {
         );
       }
       
+      // Delete all grades for this student
       const deletedGrades = await Grade.deleteMany({ student: id });
+      
+      // Delete all student progress records for this student
       const deletedProgress = await StudentProgress.deleteMany({ student: id });
       
-      console.log(`Deleted ${deletedGrades.deletedCount} grades and ${deletedProgress.deletedCount} progress records for student ${user.name}`);
+      // ✅ NEW: Delete all payment records for this student
+      const deletedPayments = await StudentPayment.deleteMany({ student: id });
+      
+      console.log(`Deleted ${deletedGrades.deletedCount} grades, ${deletedProgress.deletedCount} progress records, and ${deletedPayments.deletedCount} payment records for student ${user.name}`);
     }
 
+    // Delete the user
     await User.findByIdAndDelete(id);
 
     res.status(200).json({ 
       message: 'User deleted successfully',
-      ...(user.role === 'student' && { gradesDeleted: true, progressDeleted: true }),
-      ...(user.role === 'teacher' && { exercisesDeleted: true, progressDeleted: true })
+      ...(user.role === 'student' && { 
+        gradesDeleted: true, 
+        progressDeleted: true,
+        paymentsDeleted: true 
+      }),
+      ...(user.role === 'teacher' && { 
+        exercisesDeleted: true, 
+        progressDeleted: true 
+      })
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 // Change password
 const changePassword = async (req, res) => {
   try {
