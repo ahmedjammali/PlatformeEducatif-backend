@@ -1,5 +1,6 @@
 const Subject = require('../models/Subject');
 const Class = require('../models/Class');
+const Grade = require('../models/Grade');
 
 // Create a new subject (Admin only)
 const createSubject = async (req, res) => {
