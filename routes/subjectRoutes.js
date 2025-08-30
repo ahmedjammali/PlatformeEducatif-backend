@@ -10,16 +10,17 @@ const {
 
 const {
   authenticate,
-  isAdmin,
-  isTeacherOrHigher
+  isAdminOrHigher,
+  isTeacherOrHigher,
+  
 } = require('../middleware/auth');
 
 router.use(authenticate);
 
 // Admin only routes
-router.post('/', isAdmin, createSubject);
-router.put('/:subjectId', isAdmin, updateSubject);
-router.delete('/:subjectId', isAdmin, deleteSubject);
+router.post('/', isAdminOrHigher, createSubject);
+router.put('/:subjectId', isAdminOrHigher, updateSubject);
+router.delete('/:subjectId', isAdminOrHigher, deleteSubject);
 
 // Teacher or higher can view
 router.get('/', isTeacherOrHigher, getAllSubjects);
