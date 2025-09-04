@@ -23,7 +23,8 @@
     deleteAllPaymentRecords , 
     updatePaymentRecordComponents,
     applyStudentDiscount,
-    removeStudentDiscount
+    removeStudentDiscount , 
+    recordInscriptionFeePayment
   } = require('../controllers/paymentController');
 
   const {
@@ -86,6 +87,7 @@
       }
     }
 
+    
     // ✅ NEW: Validate uniform configuration
     if (uniform && uniform.enabled) {
       if (!uniform.price && uniform.price !== 0) {
@@ -134,6 +136,8 @@
 
     next();
   };
+
+
 
   // ✅ NEW: Validation middleware for student payment generation
   const validateStudentPaymentGeneration = (req, res, next) => {
@@ -505,6 +509,11 @@ router.delete('/student/:studentId/discount',
       });
     }
   );
+  router.post('/student/:studentId/payment/inscription', 
+  isAdminOrHigher, 
+  validateStudentId,
+  recordInscriptionFeePayment
+);
 
   // Error handling middleware for this router
   router.use((err, req, res, next) => {

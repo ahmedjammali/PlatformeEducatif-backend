@@ -53,6 +53,39 @@ grade: {
     enum: ['monthly', 'annual'],
     default: 'monthly'
   },
+  inscriptionFee: {
+    applicable: {
+      type: Boolean,
+      default: false
+    },
+    price: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    isPaid: {
+      type: Boolean,
+      default: false
+    },
+    paymentDate: {
+      type: Date
+    },
+    paymentMethod: {
+      type: String,
+      enum: ['cash', 'check', 'bank_transfer', 'online']
+    },
+    receiptNumber: {
+      type: String
+    },
+    notes: {
+      type: String,
+      trim: true
+    },
+    recordedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }
+  },
 
   // ✅ NEW: Tuition fees (academic fees)
   tuitionFees: {
@@ -228,80 +261,28 @@ grade: {
     }
   }],
 
-  // ✅ UPDATED: Total amounts breakdown
   totalAmounts: {
-    tuition: {
-      type: Number,
-      required: true,
-      min: 0
-    },
-    uniform: {
-      type: Number,
-      default: 0,
-      min: 0
-    },
-    transportation: {
-      type: Number,
-      default: 0,
-      min: 0
-    },
-    grandTotal: {
-      type: Number,
-      required: true,
-      min: 0
-    }
+    tuition: { type: Number, required: true, min: 0 },
+    uniform: { type: Number, default: 0, min: 0 },
+    transportation: { type: Number, default: 0, min: 0 },
+    inscriptionFee: { type: Number, default: 0, min: 0 }, // ✅ NEW
+    grandTotal: { type: Number, required: true, min: 0 }
   },
 
   paidAmounts: {
-    tuition: {
-      type: Number,
-      default: 0,
-      min: 0
-    },
-    uniform: {
-      type: Number,
-      default: 0,
-      min: 0
-    },
-    transportation: {
-      type: Number,
-      default: 0,
-      min: 0
-    },
-    grandTotal: {
-      type: Number,
-      default: 0,
-      min: 0
-    }
+    tuition: { type: Number, default: 0, min: 0 },
+    uniform: { type: Number, default: 0, min: 0 },
+    transportation: { type: Number, default: 0, min: 0 },
+    inscriptionFee: { type: Number, default: 0, min: 0 }, // ✅ NEW
+    grandTotal: { type: Number, default: 0, min: 0 }
   },
-
-  remainingAmounts: {
-    tuition: {
-      type: Number,
-      default: function() {
-        return this.totalAmounts.tuition - this.paidAmounts.tuition;
-      }
-    },
-    uniform: {
-      type: Number,
-      default: function() {
-        return this.totalAmounts.uniform - this.paidAmounts.uniform;
-      }
-    },
-    transportation: {
-      type: Number,
-      default: function() {
-        return this.totalAmounts.transportation - this.paidAmounts.transportation;
-      }
-    },
-    grandTotal: {
-      type: Number,
-      default: function() {
-        return this.totalAmounts.grandTotal - this.paidAmounts.grandTotal;
-      }
-    }
+remainingAmounts: {
+    tuition: { type: Number, default: function() { return this.totalAmounts.tuition - this.paidAmounts.tuition; } },
+    uniform: { type: Number, default: function() { return this.totalAmounts.uniform - this.paidAmounts.uniform; } },
+    transportation: { type: Number, default: function() { return this.totalAmounts.transportation - this.paidAmounts.transportation; } },
+    inscriptionFee: { type: Number, default: function() { return this.totalAmounts.inscriptionFee - this.paidAmounts.inscriptionFee; } }, // ✅ NEW
+    grandTotal: { type: Number, default: function() { return this.totalAmounts.grandTotal - this.paidAmounts.grandTotal; } }
   },
-  
   discount: {
   enabled: {
     type: Boolean,
@@ -371,23 +352,11 @@ grade: {
     default: 'pending'
   },
 
-  // ✅ NEW: Detailed status for each component
-  componentStatus: {
-    tuition: {
-      type: String,
-      enum: ['pending', 'partial', 'completed', 'overdue'],
-      default: 'pending'
-    },
-    uniform: {
-      type: String,
-      enum: ['not_applicable', 'pending', 'completed'],
-      default: 'not_applicable'
-    },
-    transportation: {
-      type: String,
-      enum: ['not_applicable', 'pending', 'partial', 'completed', 'overdue'],
-      default: 'not_applicable'
-    }
+componentStatus: {
+    tuition: { type: String, enum: ['pending', 'partial', 'completed', 'overdue'], default: 'pending' },
+    uniform: { type: String, enum: ['not_applicable', 'pending', 'completed'], default: 'not_applicable' },
+    transportation: { type: String, enum: ['not_applicable', 'pending', 'partial', 'completed', 'overdue'], default: 'not_applicable' },
+    inscriptionFee: { type: String, enum: ['not_applicable', 'pending', 'completed'], default: 'not_applicable' } // ✅ NEW
   },
 
   createdBy: {
@@ -436,6 +405,12 @@ studentPaymentSchema.methods.updateComponentStatus = function() {
     this.componentStatus.uniform = 'not_applicable';
   }
 
+  if (this.inscriptionFee.applicable) {
+  this.componentStatus.inscriptionFee = this.inscriptionFee.isPaid ? 'completed' : 'pending';
+} else {
+  this.componentStatus.inscriptionFee = 'not_applicable';
+}
+
   // Update transportation status
   if (this.transportation.using) {
     const paidTransportPayments = this.transportation.monthlyPayments.filter(payment => payment.status === 'paid');
@@ -472,6 +447,9 @@ studentPaymentSchema.methods.updateOverallStatus = function() {
   if (this.componentStatus.transportation !== 'not_applicable') {
     applicableStatuses.push(this.componentStatus.transportation);
   }
+  if (this.componentStatus.inscriptionFee !== 'not_applicable') {
+  applicableStatuses.push(this.componentStatus.inscriptionFee);
+}
 
   if (applicableStatuses.every(status => status === 'completed')) {
     this.overallStatus = 'completed';
@@ -489,6 +467,7 @@ studentPaymentSchema.methods.calculateRemainingAmounts = function() {
   this.remainingAmounts.tuition = this.totalAmounts.tuition - this.paidAmounts.tuition;
   this.remainingAmounts.uniform = this.totalAmounts.uniform - this.paidAmounts.uniform;
   this.remainingAmounts.transportation = this.totalAmounts.transportation - this.paidAmounts.transportation;
+  this.remainingAmounts.inscriptionFee = this.totalAmounts.inscriptionFee - this.paidAmounts.inscriptionFee; // ✅ NEW
   this.remainingAmounts.grandTotal = this.totalAmounts.grandTotal - this.paidAmounts.grandTotal;
   
   return this.remainingAmounts;

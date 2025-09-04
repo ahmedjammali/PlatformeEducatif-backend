@@ -94,7 +94,8 @@ const createOrUpdatePaymentConfig = async (req, res) => {
       academicYear,
       gradeAmounts,        // ✅ NEW: Individual grade pricing
       uniform,             // ✅ NEW: Uniform configuration
-      transportation,      // ✅ NEW: Transportation configuration
+      transportation, 
+            inscriptionFee,      // ✅ NEW: Transportation configuration
       paymentSchedule,
       gracePeriod,
       annualPaymentDiscount 
@@ -125,6 +126,7 @@ const createOrUpdatePaymentConfig = async (req, res) => {
       config.uniform = uniform;
       config.transportation = transportation;
       config.paymentSchedule = paymentSchedule;
+      config.inscriptionFee = inscriptionFee;
       if (gracePeriod !== undefined) config.gracePeriod = gracePeriod;
       if (annualPaymentDiscount !== undefined) config.annualPaymentDiscount = annualPaymentDiscount;
       config.updatedBy = userId;
@@ -156,6 +158,11 @@ const createOrUpdatePaymentConfig = async (req, res) => {
           enabled: false,
           percentage: 0,
           amount: 0
+        },
+        inscriptionFee: inscriptionFee || {
+          enabled: false,
+          prices: { maternelleAndPrimaire: 0, collegeAndLycee: 0 },
+          description: 'Frais d\'inscription'
         },
         createdBy: userId
       });
@@ -280,7 +287,7 @@ const getAllStudentsWithPayments = async (req, res) => {
         gradeCategory: gradeCategoryValue,
         paymentRecord: payment ? {
           _id: payment._id,
-          totalAmounts: payment.totalAmounts,
+          totalAmounts: payment.totalAmounts, 
           paidAmounts: payment.paidAmounts,
           remainingAmounts: payment.remainingAmounts,
           overallStatus: payment.overallStatus,
@@ -289,8 +296,8 @@ const getAllStudentsWithPayments = async (req, res) => {
           tuitionMonthlyPayments: payment.tuitionMonthlyPayments,
           uniform: payment.uniform,
           transportation: payment.transportation,
+          inscriptionFee: payment.inscriptionFee, // ✅ Make sure this is included
           academicYear: payment.academicYear,
-          // ✅ FIXED: Add discount field to the response
           discount: payment.discount || {
             enabled: false,
             type: undefined,
@@ -336,7 +343,8 @@ const getAllStudentsWithPayments = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-// ✅ UPDATED: Generate Payment Record for Existing Student
+
+// ✅ CORRECTED: Generate Payment Record for Existing Student
 const generatePaymentForStudent = async (req, res) => {
   try {
     const { studentId } = req.params;
@@ -344,8 +352,9 @@ const generatePaymentForStudent = async (req, res) => {
     const userId = req.userId;
     const { 
       academicYear,
-      hasUniform = false,        // ✅ NEW: Whether student wants uniform
-      transportationType = null  // ✅ NEW: 'close', 'far', or null
+      hasUniform = false,
+      transportationType = null,
+      includeInscriptionFee = false  // ✅ ADD: Missing parameter
     } = req.body;
     
     // Get current academic year if not specified
@@ -417,6 +426,12 @@ const generatePaymentForStudent = async (req, res) => {
       }
       transportationAmount = monthlyTransportAmount * config.paymentSchedule.totalMonths;
     }
+
+    // ✅ FIX: Inscription fee calculation should use the parameter
+    let inscriptionFeeAmount = 0;
+    if (includeInscriptionFee && config.inscriptionFee.enabled) {
+      inscriptionFeeAmount = config.getInscriptionFeeForGradeCategory(gradeCategory);
+    }
     
     // Generate payment schedules
     const tuitionSchedule = generateTuitionPaymentSchedule(
@@ -468,24 +483,34 @@ const generatePaymentForStudent = async (req, res) => {
       
       tuitionMonthlyPayments: tuitionSchedule,
       
+      // ✅ FIX: Inscription fee should use the parameter, not always the config
+      inscriptionFee: {
+        applicable: includeInscriptionFee && config.inscriptionFee.enabled,
+        price: inscriptionFeeAmount,
+        isPaid: false
+      },
+      
       totalAmounts: {
         tuition: tuitionAmount,
         uniform: uniformAmount,
         transportation: transportationAmount,
-        grandTotal: tuitionAmount + uniformAmount + transportationAmount
+        inscriptionFee: inscriptionFeeAmount,
+        grandTotal: tuitionAmount + uniformAmount + transportationAmount + inscriptionFeeAmount  // ✅ FIX: Include inscription fee in total
       },
       
       paidAmounts: {
         tuition: 0,
         uniform: 0,
         transportation: 0,
+        inscriptionFee: 0,  // ✅ FIX: Add inscription fee to paid amounts
         grandTotal: 0
       },
       
       componentStatus: {
         tuition: 'pending',
         uniform: hasUniform ? 'pending' : 'not_applicable',
-        transportation: transportationType ? 'pending' : 'not_applicable'
+        transportation: transportationType ? 'pending' : 'not_applicable', 
+        inscriptionFee: (includeInscriptionFee && config.inscriptionFee.enabled) ? 'pending' : 'not_applicable'  // ✅ FIX: Use parameter
       },
       
       createdBy: userId
@@ -563,6 +588,68 @@ const recordUniformPayment = async (req, res) => {
     
     res.status(200).json({
       message: 'Uniform payment recorded successfully',
+      paymentRecord: paymentRecord
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+const recordInscriptionFeePayment = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { 
+      paymentMethod, 
+      paymentDate, 
+      notes, 
+      receiptNumber 
+    } = req.body;
+    const userId = req.userId;
+    const { academicYear } = req.query;
+    
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const targetYear = academicYear || `${currentYear}-${currentYear + 1}`;
+    
+    const paymentRecord = await StudentPayment.findOne({
+      student: studentId,
+      academicYear: targetYear
+    });
+    
+    if (!paymentRecord) {
+      return res.status(404).json({ 
+        message: 'Payment record not found' 
+      });
+    }
+    
+    if (!paymentRecord.inscriptionFee.applicable) {
+      return res.status(400).json({ message: 'Inscription fee not applicable for this student' });
+    }
+    
+    if (paymentRecord.inscriptionFee.isPaid) {
+      return res.status(400).json({ message: 'Inscription fee already paid' });
+    }
+    
+    // Update inscription fee payment
+    paymentRecord.inscriptionFee.isPaid = true;
+    paymentRecord.inscriptionFee.paymentDate = paymentDate || new Date();
+    paymentRecord.inscriptionFee.paymentMethod = paymentMethod || 'cash';
+    paymentRecord.inscriptionFee.receiptNumber = receiptNumber;
+    paymentRecord.inscriptionFee.notes = notes;
+    paymentRecord.inscriptionFee.recordedBy = userId;
+    
+    // Update paid amounts
+    paymentRecord.paidAmounts.inscriptionFee = paymentRecord.inscriptionFee.price;
+    paymentRecord.paidAmounts.grandTotal += paymentRecord.inscriptionFee.price;
+    
+    // Calculate remaining amounts and update status
+    paymentRecord.calculateRemainingAmounts();
+    paymentRecord.updateOverallStatus();
+    
+    await paymentRecord.save();
+    
+    res.status(200).json({
+      message: 'Inscription fee payment recorded successfully',
       paymentRecord: paymentRecord
     });
   } catch (error) {
@@ -802,15 +889,16 @@ const recordAnnualTuitionPayment = async (req, res) => {
   }
 };
 
-// ✅ UPDATED: Bulk Generate Payments for All Students Without Payment Records
+// ✅ FIXED: Bulk Generate Payments for All Students Without Payment Records
 const bulkGeneratePayments = async (req, res) => {
   try {
     const schoolId = req.schoolId;
     const userId = req.userId;
     const { 
       academicYear,
-      defaultUniform = false,      // ✅ NEW: Default uniform option for all students
-      defaultTransportation = null // ✅ NEW: Default transportation for all students
+      defaultUniform = false,
+      defaultTransportation = null,
+      defaultInscriptionFee = true  // ✅ FIXED: This should default to true
     } = req.body;
     
     // Get current academic year if not specified
@@ -905,6 +993,12 @@ const bulkGeneratePayments = async (req, res) => {
           transportationAmount = monthlyTransportAmount * config.paymentSchedule.totalMonths;
         }
         
+        // ✅ FIXED: Inscription fee calculation
+        let inscriptionFeeAmount = 0;
+        if (defaultInscriptionFee && config.inscriptionFee.enabled) {
+          inscriptionFeeAmount = config.getInscriptionFeeForGradeCategory(gradeCategory);
+        }
+        
         // Generate payment schedules
         const tuitionSchedule = generateTuitionPaymentSchedule(
           config.paymentSchedule.startMonth,
@@ -953,26 +1047,39 @@ const bulkGeneratePayments = async (req, res) => {
             monthlyPayments: transportationSchedule
           },
           
+          // ✅ FIXED: Inscription fee object
+          inscriptionFee: {
+            applicable: defaultInscriptionFee && config.inscriptionFee.enabled,
+            price: inscriptionFeeAmount,
+            isPaid: false
+          },
+          
           tuitionMonthlyPayments: tuitionSchedule,
           
+          // ✅ FIXED: Include inscription fee in total amounts
           totalAmounts: {
             tuition: tuitionAmount,
             uniform: uniformAmount,
             transportation: transportationAmount,
-            grandTotal: tuitionAmount + uniformAmount + transportationAmount
+            inscriptionFee: inscriptionFeeAmount,
+            grandTotal: tuitionAmount + uniformAmount + transportationAmount + inscriptionFeeAmount
           },
           
+          // ✅ FIXED: Include inscription fee in paid amounts
           paidAmounts: {
             tuition: 0,
             uniform: 0,
             transportation: 0,
+            inscriptionFee: 0,
             grandTotal: 0
           },
           
+          // ✅ FIXED: Include inscription fee in component status
           componentStatus: {
             tuition: 'pending',
             uniform: defaultUniform ? 'pending' : 'not_applicable',
-            transportation: defaultTransportation ? 'pending' : 'not_applicable'
+            transportation: defaultTransportation ? 'pending' : 'not_applicable',
+            inscriptionFee: (defaultInscriptionFee && config.inscriptionFee.enabled) ? 'pending' : 'not_applicable'
           },
           
           createdBy: userId
@@ -2203,7 +2310,8 @@ const updatePaymentRecordComponents = async (req, res) => {
     const { 
       academicYear,
       hasUniform = false,
-      transportationType = null  // 'close', 'far', or null
+      transportationType = null,
+      hasInscriptionFee = false // ✅ Already included
     } = req.body;
     
     // Get current academic year if not specified
@@ -2237,6 +2345,13 @@ const updatePaymentRecordComponents = async (req, res) => {
       });
     }
     
+    // ✅ ADD: Inscription fee validation
+    if (!hasInscriptionFee && paymentRecord.inscriptionFee?.isPaid) {
+      return res.status(400).json({ 
+        message: 'Cannot remove inscription fee as it has already been paid' 
+      });
+    }
+    
     // Validation: Check if uniform is already paid
     if (!hasUniform && paymentRecord.uniform.isPaid) {
       return res.status(400).json({ 
@@ -2258,10 +2373,41 @@ const updatePaymentRecordComponents = async (req, res) => {
     }
     
     // Store old amounts for adjustment calculations
+    const oldInscriptionFeeAmount = paymentRecord.totalAmounts.inscriptionFee || 0; // ✅ ADD
     const oldUniformAmount = paymentRecord.totalAmounts.uniform;
     const oldTransportationAmount = paymentRecord.totalAmounts.transportation;
+    const oldPaidInscriptionFee = paymentRecord.paidAmounts.inscriptionFee || 0; // ✅ ADD
     const oldPaidUniform = paymentRecord.paidAmounts.uniform;
     const oldPaidTransportation = paymentRecord.paidAmounts.transportation;
+    
+    // ✅ ADD: Update inscription fee configuration
+    let newInscriptionFeeAmount = 0;
+    if (hasInscriptionFee && config.inscriptionFee.enabled) {
+      newInscriptionFeeAmount = config.getInscriptionFeeForGradeCategory(paymentRecord.gradeCategory);
+      
+      // Update inscription fee object
+      paymentRecord.inscriptionFee = paymentRecord.inscriptionFee || {};
+      paymentRecord.inscriptionFee.applicable = true;
+      paymentRecord.inscriptionFee.price = newInscriptionFeeAmount;
+      
+      // Keep existing payment status if inscription fee was already applicable
+      if (!paymentRecord.inscriptionFee.applicable) {
+        paymentRecord.inscriptionFee.isPaid = false;
+        paymentRecord.componentStatus.inscriptionFee = 'pending';
+      }
+    } else {
+      // Remove inscription fee (only if not paid)
+      if (paymentRecord.inscriptionFee) {
+        paymentRecord.inscriptionFee.applicable = false;
+        paymentRecord.inscriptionFee.price = 0;
+        paymentRecord.inscriptionFee.isPaid = false;
+        paymentRecord.inscriptionFee.paymentDate = null;
+        paymentRecord.inscriptionFee.paymentMethod = null;
+        paymentRecord.inscriptionFee.receiptNumber = null;
+        paymentRecord.inscriptionFee.notes = null;
+        paymentRecord.componentStatus.inscriptionFee = 'not_applicable';
+      }
+    }
     
     // Update uniform configuration
     let newUniformAmount = 0;
@@ -2354,11 +2500,23 @@ const updatePaymentRecordComponents = async (req, res) => {
       }
     }
     
-    // Update total amounts
+    // ✅ UPDATE: Update total amounts including inscription fee
+    paymentRecord.totalAmounts.inscriptionFee = newInscriptionFeeAmount;
     paymentRecord.totalAmounts.uniform = newUniformAmount;
     paymentRecord.totalAmounts.transportation = newTransportationAmount;
     paymentRecord.totalAmounts.grandTotal = 
-      paymentRecord.totalAmounts.tuition + newUniformAmount + newTransportationAmount;
+      paymentRecord.totalAmounts.tuition + newInscriptionFeeAmount + newUniformAmount + newTransportationAmount;
+    
+    // ✅ ADD: Adjust paid amounts if inscription fee was removed
+    if (!hasInscriptionFee && oldPaidInscriptionFee > 0) {
+      paymentRecord.paidAmounts.inscriptionFee = 0;
+      paymentRecord.paidAmounts.grandTotal -= oldPaidInscriptionFee;
+    } else if (hasInscriptionFee && paymentRecord.inscriptionFee?.isPaid) {
+      // Update paid amount to new inscription fee price if already paid
+      const paidAmountDifference = newInscriptionFeeAmount - oldPaidInscriptionFee;
+      paymentRecord.paidAmounts.inscriptionFee = newInscriptionFeeAmount;
+      paymentRecord.paidAmounts.grandTotal += paidAmountDifference;
+    }
     
     // Adjust paid amounts if uniform was removed
     if (!hasUniform && oldPaidUniform > 0) {
@@ -2390,6 +2548,10 @@ const updatePaymentRecordComponents = async (req, res) => {
       message: 'Payment record components updated successfully',
       paymentRecord: paymentRecord,
       changes: {
+        inscriptionFee: { // ✅ ADD
+          old: { applicable: oldInscriptionFeeAmount > 0, amount: oldInscriptionFeeAmount },
+          new: { applicable: hasInscriptionFee, amount: newInscriptionFeeAmount }
+        },
         uniform: {
           old: { purchased: !hasUniform, amount: oldUniformAmount },
           new: { purchased: hasUniform, amount: newUniformAmount }
@@ -2602,5 +2764,6 @@ module.exports = {
   deleteAllPaymentRecords,
   updatePaymentRecordComponents,         
   applyStudentDiscount,
-  removeStudentDiscount  
+  removeStudentDiscount  , 
+  recordInscriptionFeePayment
 };
