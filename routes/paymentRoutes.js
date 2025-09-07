@@ -24,7 +24,10 @@
     updatePaymentRecordComponents,
     applyStudentDiscount,
     removeStudentDiscount , 
-    recordInscriptionFeePayment
+    recordInscriptionFeePayment, 
+     getPaymentAnalytics,
+  getFinancialSummary,
+  getEnhancedPaymentReports
   } = require('../controllers/paymentController');
 
   const {
@@ -46,6 +49,45 @@
     return res.status(400).json({ 
       message: 'transportationType must be either "close", "far", or null' 
     });
+  }
+
+  next();
+};
+const validateAnalyticsFilters = (req, res, next) => {
+  const { component, includeDiscounts, format } = req.query;
+  
+  if (component && !['all', 'tuition', 'uniform', 'transportation', 'inscription'].includes(component)) {
+    return res.status(400).json({ 
+      message: 'component must be one of: all, tuition, uniform, transportation, inscription' 
+    });
+  }
+  
+  if (includeDiscounts && !['true', 'false'].includes(includeDiscounts)) {
+    return res.status(400).json({ 
+      message: 'includeDiscounts must be true or false' 
+    });
+  }
+  
+  if (format && !['json', 'csv'].includes(format)) {
+    return res.status(400).json({ 
+      message: 'format must be json or csv' 
+    });
+  }
+
+  next();
+};
+
+
+const validateEnhancedReportType = (req, res, next) => {
+  const { reportType } = req.query;
+  
+  if (reportType) {
+    const validTypes = ['detailed', 'summary', 'financial', 'outstanding'];
+    if (!validTypes.includes(reportType)) {
+      return res.status(400).json({ 
+        message: 'reportType must be one of: ' + validTypes.join(', ') 
+      });
+    }
   }
 
   next();
@@ -267,14 +309,15 @@
     
     if (grade) {
       const validGrades = [
-        // Maternal
-        'Maternal', // ✅ UPDATED
-        // Primaire
-        '1ère année primaire', '2ème année primaire', '3ème année primaire', 
-        '4ème année primaire', '5ème année primaire', '6ème année primaire',
-        // Secondaire
-        '1ère année secondaire', '2ème année secondaire', '3ème année secondaire', 
-        '4ème année secondaire', '5ème année secondaire', '6ème année secondaire', '7ème année secondaire'
+ // Maternal (single grade)
+    'Maternal',
+    // Primaire
+    '1ère année primaire', '2ème année primaire', '3ème année primaire', 
+    '4ème année primaire', '5ème année primaire', '6ème année primaire',
+    // Collège (Middle School)
+    '7ème année', '8ème année', '9ème année',
+    // Lycée (High School)
+    '1ère année lycée', '2ème année lycée', '3ème année lycée', '4ème année lycée'
       ];
       
       if (!validGrades.includes(grade)) {
@@ -452,15 +495,14 @@
 
   // ===== REPORTING ROUTES =====
 
-  // Get payment reports
-  router.get('/reports', 
-    isTeacherOrHigher, 
-    validateReportType,
-    validateGradeFilters,                    // ✅ UPDATED
-    validateAcademicYearQuery,
-    getPaymentReports
-  );
-
+router.get('/reports', 
+  isTeacherOrHigher, 
+  validateEnhancedReportType,        // Updated validation
+  validateGradeFilters,
+  validateAnalyticsFilters,          // New validation
+  validateAcademicYearQuery,
+  getEnhancedPaymentReports          // Updated controller
+);
   // Get monthly payment statistics
   router.get('/stats/monthly', 
     isTeacherOrHigher, 
@@ -514,6 +556,8 @@ router.delete('/student/:studentId/discount',
   validateStudentId,
   recordInscriptionFeePayment
 );
+
+
 
   // Error handling middleware for this router
   router.use((err, req, res, next) => {
