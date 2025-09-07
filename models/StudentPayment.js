@@ -467,7 +467,7 @@ studentPaymentSchema.methods.calculateRemainingAmounts = function() {
   this.remainingAmounts.tuition = this.totalAmounts.tuition - this.paidAmounts.tuition;
   this.remainingAmounts.uniform = this.totalAmounts.uniform - this.paidAmounts.uniform;
   this.remainingAmounts.transportation = this.totalAmounts.transportation - this.paidAmounts.transportation;
-  this.remainingAmounts.inscriptionFee = this.totalAmounts.inscriptionFee - this.paidAmounts.inscriptionFee; // ✅ NEW
+  this.remainingAmounts.inscriptionFee = (this.totalAmounts.inscriptionFee || 0) - (this.paidAmounts.inscriptionFee || 0);
   this.remainingAmounts.grandTotal = this.totalAmounts.grandTotal - this.paidAmounts.grandTotal;
   
   return this.remainingAmounts;

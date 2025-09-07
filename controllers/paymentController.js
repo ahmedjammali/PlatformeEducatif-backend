@@ -344,7 +344,7 @@ const getAllStudentsWithPayments = async (req, res) => {
   }
 };
 
-// ✅ CORRECTED: Generate Payment Record for Existing Student
+// ✅ FIXED: Generate Payment Record for Existing Student
 const generatePaymentForStudent = async (req, res) => {
   try {
     const { studentId } = req.params;
@@ -354,7 +354,7 @@ const generatePaymentForStudent = async (req, res) => {
       academicYear,
       hasUniform = false,
       transportationType = null,
-      includeInscriptionFee = false  // ✅ ADD: Missing parameter
+      includeInscriptionFee = false
     } = req.body;
     
     // Get current academic year if not specified
@@ -427,7 +427,7 @@ const generatePaymentForStudent = async (req, res) => {
       transportationAmount = monthlyTransportAmount * config.paymentSchedule.totalMonths;
     }
 
-    // ✅ FIX: Inscription fee calculation should use the parameter
+    // ✅ FIX: Inscription fee calculation
     let inscriptionFeeAmount = 0;
     if (includeInscriptionFee && config.inscriptionFee.enabled) {
       inscriptionFeeAmount = config.getInscriptionFeeForGradeCategory(gradeCategory);
@@ -483,34 +483,37 @@ const generatePaymentForStudent = async (req, res) => {
       
       tuitionMonthlyPayments: tuitionSchedule,
       
-      // ✅ FIX: Inscription fee should use the parameter, not always the config
+      // ✅ FIX: Inscription fee configuration
       inscriptionFee: {
         applicable: includeInscriptionFee && config.inscriptionFee.enabled,
         price: inscriptionFeeAmount,
         isPaid: false
       },
       
+      // ✅ FIX: Include inscription fee in total amounts
       totalAmounts: {
         tuition: tuitionAmount,
         uniform: uniformAmount,
         transportation: transportationAmount,
         inscriptionFee: inscriptionFeeAmount,
-        grandTotal: tuitionAmount + uniformAmount + transportationAmount + inscriptionFeeAmount  // ✅ FIX: Include inscription fee in total
+        grandTotal: tuitionAmount + uniformAmount + transportationAmount + inscriptionFeeAmount
       },
       
+      // ✅ FIX: Include inscription fee in paid amounts
       paidAmounts: {
         tuition: 0,
         uniform: 0,
         transportation: 0,
-        inscriptionFee: 0,  // ✅ FIX: Add inscription fee to paid amounts
+        inscriptionFee: 0,
         grandTotal: 0
       },
       
+      // ✅ FIX: Include inscription fee in component status
       componentStatus: {
         tuition: 'pending',
         uniform: hasUniform ? 'pending' : 'not_applicable',
         transportation: transportationType ? 'pending' : 'not_applicable', 
-        inscriptionFee: (includeInscriptionFee && config.inscriptionFee.enabled) ? 'pending' : 'not_applicable'  // ✅ FIX: Use parameter
+        inscriptionFee: (includeInscriptionFee && config.inscriptionFee.enabled) ? 'pending' : 'not_applicable'
       },
       
       createdBy: userId
@@ -530,7 +533,7 @@ const generatePaymentForStudent = async (req, res) => {
   }
 };
 
-// ✅ NEW: Record Uniform Payment
+// ✅ NEW: Record Uniform PaymentbulkGeneratePayments 
 const recordUniformPayment = async (req, res) => {
   try {
     const { studentId } = req.params;
@@ -898,7 +901,7 @@ const bulkGeneratePayments = async (req, res) => {
       academicYear,
       defaultUniform = false,
       defaultTransportation = null,
-      defaultInscriptionFee = true  // ✅ FIXED: This should default to true
+      defaultInscriptionFee = true  // ✅ This should default to true
     } = req.body;
     
     // Get current academic year if not specified
@@ -1108,7 +1111,6 @@ const bulkGeneratePayments = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 // ✅ UPDATED: Get Payment Dashboard Statistics
 const getPaymentDashboard = async (req, res) => {
   try {
@@ -1141,6 +1143,7 @@ const getPaymentDashboard = async (req, res) => {
       tuition: allPayments.reduce((sum, payment) => sum + payment.paidAmounts.tuition, 0),
       uniform: allPayments.reduce((sum, payment) => sum + payment.paidAmounts.uniform, 0),
       transportation: allPayments.reduce((sum, payment) => sum + payment.paidAmounts.transportation, 0),
+      inscriptionFee: allPayments.reduce((sum, payment) => sum + (payment.paidAmounts.inscriptionFee || 0), 0), // ✅ FIXED
       grandTotal: allPayments.reduce((sum, payment) => sum + payment.paidAmounts.grandTotal, 0)
     };
     
@@ -1148,6 +1151,7 @@ const getPaymentDashboard = async (req, res) => {
       tuition: allPayments.reduce((sum, payment) => sum + payment.totalAmounts.tuition, 0),
       uniform: allPayments.reduce((sum, payment) => sum + payment.totalAmounts.uniform, 0),
       transportation: allPayments.reduce((sum, payment) => sum + payment.totalAmounts.transportation, 0),
+      inscriptionFee: allPayments.reduce((sum, payment) => sum + (payment.totalAmounts.inscriptionFee || 0), 0), // ✅ FIXED
       grandTotal: allPayments.reduce((sum, payment) => sum + payment.totalAmounts.grandTotal, 0)
     };
     
@@ -1155,6 +1159,7 @@ const getPaymentDashboard = async (req, res) => {
       tuition: expectedRevenue.tuition - totalRevenue.tuition,
       uniform: expectedRevenue.uniform - totalRevenue.uniform,
       transportation: expectedRevenue.transportation - totalRevenue.transportation,
+      inscriptionFee: expectedRevenue.inscriptionFee - totalRevenue.inscriptionFee, // ✅ FIXED
       grandTotal: expectedRevenue.grandTotal - totalRevenue.grandTotal
     };
     
@@ -1197,6 +1202,13 @@ const getPaymentDashboard = async (req, res) => {
         farZone: allPayments.filter(p => p.transportation.using && p.transportation.type === 'far').length,
         totalRevenue: totalRevenue.transportation,
         expectedRevenue: expectedRevenue.transportation
+      },
+      // ✅ NEW: Inscription fee statistics
+      inscriptionFee: {
+        totalStudents: allPayments.filter(p => p.inscriptionFee?.applicable).length,
+        paidStudents: allPayments.filter(p => p.inscriptionFee?.applicable && p.inscriptionFee?.isPaid).length,
+        totalRevenue: totalRevenue.inscriptionFee,
+        expectedRevenue: expectedRevenue.inscriptionFee
       }
     };
     
@@ -1213,6 +1225,7 @@ const getPaymentDashboard = async (req, res) => {
             tuition: expectedRevenue.tuition > 0 ? ((totalRevenue.tuition / expectedRevenue.tuition) * 100).toFixed(2) : 0,
             uniform: expectedRevenue.uniform > 0 ? ((totalRevenue.uniform / expectedRevenue.uniform) * 100).toFixed(2) : 0,
             transportation: expectedRevenue.transportation > 0 ? ((totalRevenue.transportation / expectedRevenue.transportation) * 100).toFixed(2) : 0,
+            inscriptionFee: expectedRevenue.inscriptionFee > 0 ? ((totalRevenue.inscriptionFee / expectedRevenue.inscriptionFee) * 100).toFixed(2) : 0, // ✅ NEW
             overall: expectedRevenue.grandTotal > 0 ? ((totalRevenue.grandTotal / expectedRevenue.grandTotal) * 100).toFixed(2) : 0
           }
         },
@@ -1225,7 +1238,6 @@ const getPaymentDashboard = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 // ✅ UPDATED: Update Existing Payment Records
 const updateExistingPaymentRecords = async (req, res) => {
   try {
@@ -2311,7 +2323,7 @@ const updatePaymentRecordComponents = async (req, res) => {
       academicYear,
       hasUniform = false,
       transportationType = null,
-      hasInscriptionFee = false // ✅ Already included
+      hasInscriptionFee = false
     } = req.body;
     
     // Get current academic year if not specified
@@ -2345,7 +2357,7 @@ const updatePaymentRecordComponents = async (req, res) => {
       });
     }
     
-    // ✅ ADD: Inscription fee validation
+    // Inscription fee validation
     if (!hasInscriptionFee && paymentRecord.inscriptionFee?.isPaid) {
       return res.status(400).json({ 
         message: 'Cannot remove inscription fee as it has already been paid' 
@@ -2373,14 +2385,14 @@ const updatePaymentRecordComponents = async (req, res) => {
     }
     
     // Store old amounts for adjustment calculations
-    const oldInscriptionFeeAmount = paymentRecord.totalAmounts.inscriptionFee || 0; // ✅ ADD
+    const oldInscriptionFeeAmount = paymentRecord.totalAmounts.inscriptionFee || 0;
     const oldUniformAmount = paymentRecord.totalAmounts.uniform;
     const oldTransportationAmount = paymentRecord.totalAmounts.transportation;
-    const oldPaidInscriptionFee = paymentRecord.paidAmounts.inscriptionFee || 0; // ✅ ADD
+    const oldPaidInscriptionFee = paymentRecord.paidAmounts.inscriptionFee || 0;
     const oldPaidUniform = paymentRecord.paidAmounts.uniform;
     const oldPaidTransportation = paymentRecord.paidAmounts.transportation;
     
-    // ✅ ADD: Update inscription fee configuration
+    // ✅ UPDATE: Inscription fee configuration
     let newInscriptionFeeAmount = 0;
     if (hasInscriptionFee && config.inscriptionFee.enabled) {
       newInscriptionFeeAmount = config.getInscriptionFeeForGradeCategory(paymentRecord.gradeCategory);
@@ -2500,14 +2512,14 @@ const updatePaymentRecordComponents = async (req, res) => {
       }
     }
     
-    // ✅ UPDATE: Update total amounts including inscription fee
+    // ✅ FIXED: Update total amounts including inscription fee
     paymentRecord.totalAmounts.inscriptionFee = newInscriptionFeeAmount;
     paymentRecord.totalAmounts.uniform = newUniformAmount;
     paymentRecord.totalAmounts.transportation = newTransportationAmount;
     paymentRecord.totalAmounts.grandTotal = 
       paymentRecord.totalAmounts.tuition + newInscriptionFeeAmount + newUniformAmount + newTransportationAmount;
     
-    // ✅ ADD: Adjust paid amounts if inscription fee was removed
+    // ✅ FIXED: Adjust paid amounts if inscription fee was removed
     if (!hasInscriptionFee && oldPaidInscriptionFee > 0) {
       paymentRecord.paidAmounts.inscriptionFee = 0;
       paymentRecord.paidAmounts.grandTotal -= oldPaidInscriptionFee;
@@ -2548,7 +2560,7 @@ const updatePaymentRecordComponents = async (req, res) => {
       message: 'Payment record components updated successfully',
       paymentRecord: paymentRecord,
       changes: {
-        inscriptionFee: { // ✅ ADD
+        inscriptionFee: {
           old: { applicable: oldInscriptionFeeAmount > 0, amount: oldInscriptionFeeAmount },
           new: { applicable: hasInscriptionFee, amount: newInscriptionFeeAmount }
         },
@@ -2566,9 +2578,8 @@ const updatePaymentRecordComponents = async (req, res) => {
     console.error('Error updating payment record components:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
-}
-
-
+};
+// FIXED VERSION - Include inscription fee in discount calculation
 const applyStudentDiscount = async (req, res) => {
   try {
     const { studentId } = req.params;
@@ -2608,6 +2619,15 @@ const applyStudentDiscount = async (req, res) => {
     const discountAmount = (originalTuitionAmount * percentage) / 100;
     const newTuitionAmount = originalTuitionAmount - discountAmount;
     
+    console.log('BACKEND DISCOUNT CALCULATION:', {
+      originalTuitionAmount,
+      discountAmount,
+      newTuitionAmount,
+      inscriptionFee: paymentRecord.totalAmounts.inscriptionFee || 0,
+      uniform: paymentRecord.totalAmounts.uniform,
+      transportation: paymentRecord.totalAmounts.transportation
+    });
+    
     // Apply discount
     paymentRecord.discount = {
       enabled: true,
@@ -2621,7 +2641,14 @@ const applyStudentDiscount = async (req, res) => {
     // Update tuition amounts
     paymentRecord.tuitionFees.amount = newTuitionAmount;
     paymentRecord.totalAmounts.tuition = newTuitionAmount;
-    paymentRecord.totalAmounts.grandTotal = newTuitionAmount + paymentRecord.totalAmounts.uniform + paymentRecord.totalAmounts.transportation;
+    
+    // ✅ CRITICAL FIX: Include inscription fee in grand total calculation
+    paymentRecord.totalAmounts.grandTotal = newTuitionAmount + 
+      paymentRecord.totalAmounts.uniform + 
+      paymentRecord.totalAmounts.transportation + 
+      (paymentRecord.totalAmounts.inscriptionFee || 0);
+    
+    console.log('BACKEND FIXED GRAND TOTAL:', paymentRecord.totalAmounts.grandTotal);
     
     if (discountType === 'monthly') {
       // Update monthly payments
@@ -2655,7 +2682,6 @@ const applyStudentDiscount = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 const removeStudentDiscount = async (req, res) => {
   try {
     const { studentId } = req.params;
@@ -2710,7 +2736,13 @@ const removeStudentDiscount = async (req, res) => {
     paymentRecord.tuitionFees.amount = originalTuitionAmount;
     paymentRecord.tuitionFees.monthlyAmount = originalMonthlyAmount;
     paymentRecord.totalAmounts.tuition = originalTuitionAmount;
-    paymentRecord.totalAmounts.grandTotal = originalTuitionAmount + paymentRecord.totalAmounts.uniform + paymentRecord.totalAmounts.transportation;
+    
+    // ✅ FIXED: Include inscription fee in grand total calculation
+    // ✅ ALSO FIX THIS LINE IN removeStudentDiscount
+paymentRecord.totalAmounts.grandTotal = originalTuitionAmount + 
+  paymentRecord.totalAmounts.uniform + 
+  paymentRecord.totalAmounts.transportation + 
+  (paymentRecord.totalAmounts.inscriptionFee || 0);
     
     // Update monthly payments
     paymentRecord.tuitionMonthlyPayments.forEach(payment => {
@@ -3062,38 +3094,253 @@ const calculateOutstandingAnalysis = (payments, component) => {
   };
 };
 
-const generateDetailedAnalyticsReport = (payments, component, includeDiscounts) => {
-  return {
+
+const calculatePaymentTrends = (payments, dateFrom, dateTo) => {
+  const trends = [];
+  const monthlyData = {};
+  
+  // Group payments by month
+  payments.forEach(payment => {
+    // Process tuition payments
+    payment.tuitionMonthlyPayments.forEach(monthly => {
+      const monthKey = `${monthly.month}-${payment.academicYear}`;
+      if (!monthlyData[monthKey]) {
+        monthlyData[monthKey] = {
+          month: monthly.monthName,
+          expected: 0,
+          collected: 0
+        };
+      }
+      monthlyData[monthKey].expected += monthly.amount;
+      monthlyData[monthKey].collected += monthly.paidAmount;
+    });
+    
+    // Process transportation payments
+    if (payment.transportation.using) {
+      payment.transportation.monthlyPayments.forEach(monthly => {
+        const monthKey = `${monthly.month}-${payment.academicYear}`;
+        if (!monthlyData[monthKey]) {
+          monthlyData[monthKey] = {
+            month: monthly.monthName,
+            expected: 0,
+            collected: 0
+          };
+        }
+        monthlyData[monthKey].expected += monthly.amount;
+        monthlyData[monthKey].collected += monthly.paidAmount;
+      });
+    }
+  });
+  
+  // Convert to array and calculate collection rate
+  Object.keys(monthlyData).sort().forEach(key => {
+    const data = monthlyData[key];
+    trends.push({
+      month: data.month,
+      expected: data.expected,
+      collected: data.collected,
+      collectionRate: data.expected > 0 ? ((data.collected / data.expected) * 100).toFixed(2) : '0'
+    });
+  });
+  
+  // Filter by date range if provided
+  if (dateFrom || dateTo) {
+    const start = dateFrom ? new Date(dateFrom) : new Date('1900-01-01');
+    const end = dateTo ? new Date(dateTo) : new Date();
+    
+    // This is a simplified date filter - you may want to enhance this
+    return trends.filter((trend, index) => {
+      // For now, return all trends within the array bounds
+      // You can implement more sophisticated date filtering based on your needs
+      return true;
+    });
+  }
+  
+  return trends;
+};
+
+const generateSummaryAnalyticsReport = (payments, component) => {
+  const summary = {
     totalRecords: payments.length,
-    data: payments.map(payment => ({
+    overview: {
+      totalStudents: payments.length,
+      totalExpected: 0,
+      totalCollected: 0,
+      totalOutstanding: 0
+    },
+    byStatus: {
+      pending: 0,
+      partial: 0,
+      completed: 0,
+      overdue: 0
+    }
+  };
+  
+  payments.forEach(payment => {
+    // Calculate totals based on component
+    if (component === 'all' || !component) {
+      summary.overview.totalExpected += payment.totalAmounts.grandTotal;
+      summary.overview.totalCollected += payment.paidAmounts.grandTotal;
+      summary.overview.totalOutstanding += payment.remainingAmounts.grandTotal;
+    } else {
+      summary.overview.totalExpected += payment.totalAmounts[component] || 0;
+      summary.overview.totalCollected += payment.paidAmounts[component] || 0;
+      summary.overview.totalOutstanding += payment.remainingAmounts[component] || 0;
+    }
+    
+    // Count by status
+    summary.byStatus[payment.overallStatus]++;
+  });
+  
+  summary.overview.collectionRate = summary.overview.totalExpected > 0 
+    ? ((summary.overview.totalCollected / summary.overview.totalExpected) * 100).toFixed(2)
+    : '0';
+  
+  return summary;
+};
+
+const generateFinancialReport = (payments) => {
+  const report = {
+    revenue: {
+      total: 0,
+      tuition: 0,
+      uniform: 0,
+      transportation: 0,
+      inscription: 0
+    },
+    expected: {
+      total: 0,
+      tuition: 0,
+      uniform: 0,
+      transportation: 0,
+      inscription: 0
+    },
+    outstanding: {
+      total: 0,
+      tuition: 0,
+      uniform: 0,
+      transportation: 0,
+      inscription: 0
+    },
+    discounts: {
+      totalApplied: 0,
+      totalAmount: 0
+    },
+    collectionsByMethod: {
+      cash: 0,
+      check: 0,
+      bank_transfer: 0,
+      online: 0
+    }
+  };
+  
+  payments.forEach(payment => {
+    // Revenue (collected amounts)
+    report.revenue.total += payment.paidAmounts.grandTotal;
+    report.revenue.tuition += payment.paidAmounts.tuition;
+    report.revenue.uniform += payment.paidAmounts.uniform;
+    report.revenue.transportation += payment.paidAmounts.transportation;
+    report.revenue.inscription += payment.paidAmounts.inscriptionFee || 0;
+    
+    // Expected amounts
+    report.expected.total += payment.totalAmounts.grandTotal;
+    report.expected.tuition += payment.totalAmounts.tuition;
+    report.expected.uniform += payment.totalAmounts.uniform;
+    report.expected.transportation += payment.totalAmounts.transportation;
+    report.expected.inscription += payment.totalAmounts.inscriptionFee || 0;
+    
+    // Outstanding amounts
+    report.outstanding.total += payment.remainingAmounts.grandTotal;
+    report.outstanding.tuition += payment.remainingAmounts.tuition;
+    report.outstanding.uniform += payment.remainingAmounts.uniform;
+    report.outstanding.transportation += payment.remainingAmounts.transportation;
+    report.outstanding.inscription += payment.remainingAmounts.inscriptionFee || 0;
+    
+    // Discounts
+    if (payment.discount && payment.discount.enabled) {
+      report.discounts.totalApplied++;
+      const originalAmount = payment.tuitionFees.amount / (1 - payment.discount.percentage / 100);
+      report.discounts.totalAmount += originalAmount * payment.discount.percentage / 100;
+    }
+    
+    // Payment methods (from monthly payments)
+    payment.tuitionMonthlyPayments.forEach(monthly => {
+      if (monthly.paymentMethod && monthly.paidAmount > 0) {
+        report.collectionsByMethod[monthly.paymentMethod] = 
+          (report.collectionsByMethod[monthly.paymentMethod] || 0) + monthly.paidAmount;
+      }
+    });
+  });
+  
+  return report;
+};
+
+const generateDetailedAnalyticsReport = (payments, component, includeDiscounts) => {
+  const report = {
+    totalRecords: payments.length,
+    data: [],
+    csvData: []
+  };
+  
+  report.data = payments.map(payment => {
+    const studentData = {
       student: {
-        name: payment.student.name,
-        email: payment.student.email,
+        name: payment.student?.name || 'Unknown',
+        email: payment.student?.email || 'N/A',
         grade: payment.grade,
         gradeCategory: payment.gradeCategory
       },
       amounts: {
-        expected: component === 'all' ? payment.totalAmounts.grandTotal : payment.totalAmounts[component] || 0,
-        paid: component === 'all' ? payment.paidAmounts.grandTotal : payment.paidAmounts[component] || 0,
-        outstanding: component === 'all' ? payment.remainingAmounts.grandTotal : payment.remainingAmounts[component] || 0
+        expected: component === 'all' || !component 
+          ? payment.totalAmounts.grandTotal 
+          : payment.totalAmounts[component] || 0,
+        paid: component === 'all' || !component 
+          ? payment.paidAmounts.grandTotal 
+          : payment.paidAmounts[component] || 0,
+        outstanding: component === 'all' || !component 
+          ? payment.remainingAmounts.grandTotal 
+          : payment.remainingAmounts[component] || 0
       },
       status: payment.overallStatus,
       paymentType: payment.paymentType,
-      discount: includeDiscounts && payment.discount.enabled ? {
-        type: payment.discount.type,
-        percentage: payment.discount.percentage,
-        amount: (payment.tuitionFees.amount * payment.discount.percentage / 100).toFixed(2)
-      } : null,
       components: {
         tuition: payment.componentStatus.tuition,
         uniform: payment.componentStatus.uniform,
         transportation: payment.componentStatus.transportation,
-        inscription: payment.componentStatus.inscriptionFee
+        inscription: payment.componentStatus.inscriptionFee || 'not_applicable'
       }
-    }))
-  };
+    };
+    
+    // Include discount info if requested
+    if (includeDiscounts && payment.discount && payment.discount.enabled) {
+      studentData.discount = {
+        type: payment.discount.type,
+        percentage: payment.discount.percentage,
+        amount: (payment.tuitionFees.amount * payment.discount.percentage / 100).toFixed(2)
+      };
+    } else {
+      studentData.discount = null;
+    }
+    
+    return studentData;
+  });
+  
+  // Generate CSV data
+  report.csvData = report.data.map(item => ({
+    'Nom de l\'élève': item.student.name,
+    'Email': item.student.email,
+    'Niveau': item.student.grade,
+    'Catégorie': item.student.gradeCategory,
+    'Montant attendu': item.amounts.expected,
+    'Montant payé': item.amounts.paid,
+    'Montant restant': item.amounts.outstanding,
+    'Statut': item.status,
+    'Type de paiement': item.paymentType,
+    'Remise appliquée': item.discount ? `${item.discount.percentage}% (${item.discount.type})` : 'Non'
+  }));
+  
+  return report;
 };
-
 module.exports = {
   createOrUpdatePaymentConfig,
   getPaymentConfig,

@@ -77,7 +77,6 @@ const validateAnalyticsFilters = (req, res, next) => {
   next();
 };
 
-
 const validateEnhancedReportType = (req, res, next) => {
   const { reportType } = req.query;
   
@@ -450,6 +449,22 @@ const validateEnhancedReportType = (req, res, next) => {
     recordMonthlyTuitionPayment
   );
 
+  // ✅ NEW: Analytics route
+router.get('/analytics', 
+  isTeacherOrHigher, 
+  validateAnalyticsFilters,
+  validateAcademicYearQuery,
+  getPaymentAnalytics
+);
+
+// ✅ NEW: Financial summary route  
+router.get('/financial-summary',
+  isTeacherOrHigher,
+  validateAcademicYearQuery, 
+  getFinancialSummary
+);
+
+
   // ✅ NEW: Record monthly transportation payment for a student
   router.post('/student/:studentId/payment/transportation/monthly', 
     isAdminOrHigher, 
@@ -509,6 +524,15 @@ router.get('/reports',
     validateAcademicYearQuery,
     getPaymentStatsByMonth
   );
+
+  router.get('/reports/enhanced',
+  isTeacherOrHigher,
+  validateEnhancedReportType,
+  validateGradeFilters,
+  validateAnalyticsFilters,
+  validateAcademicYearQuery,
+  getEnhancedPaymentReports
+);
 
   // Export payment data
   router.get('/export', 
