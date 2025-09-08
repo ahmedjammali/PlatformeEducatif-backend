@@ -183,6 +183,31 @@ gradeAmounts: {
       max: [12, 'Total months cannot exceed 12']
     }
   },
+   inscriptionFee: {
+    enabled: {
+      type: Boolean,
+      default: true
+    },
+    prices: {
+      maternelleAndPrimaire: {
+        type: Number,
+        required: function() { return this.inscriptionFee.enabled; },
+        min: [0, 'Inscription fee cannot be negative'],
+        default: 0
+      },
+      collegeAndLycee: {
+        type: Number,
+        required: function() { return this.inscriptionFee.enabled; },
+        min: [0, 'Inscription fee cannot be negative'],
+        default: 0
+      }
+    },
+    description: {
+      type: String,
+      trim: true,
+      default: 'Frais d\'inscription'
+    }
+  },
   
   // Grace period for late payments (in days)
   gracePeriod: {
@@ -347,6 +372,35 @@ paymentConfigurationSchema.methods.validateSchedule = function() {
   }
   
   return calculatedMonths === totalMonths;
+};
+
+// Add this method to your PaymentConfiguration schema
+paymentConfigurationSchema.methods.getInscriptionFeeForGradeCategory = function(gradeCategory) {
+  if (!this.inscriptionFee.enabled) return 0;
+  
+  if (gradeCategory === 'maternelle' || gradeCategory === 'primaire') {
+    return this.inscriptionFee.prices.maternelleAndPrimaire || 0;
+  }
+  
+  if (gradeCategory === 'secondaire') {
+    return this.inscriptionFee.prices.collegeAndLycee || 0;
+  }
+  
+  return 0;
+};
+
+paymentConfigurationSchema.methods.getInscriptionFeeForGradeCategory = function(gradeCategory) {
+  if (!this.inscriptionFee.enabled) return 0;
+  
+  if (gradeCategory === 'maternelle' || gradeCategory === 'primaire') {
+    return this.inscriptionFee.prices.maternelleAndPrimaire;
+  }
+  
+  if (gradeCategory === 'secondaire') {
+    return this.inscriptionFee.prices.collegeAndLycee;
+  }
+  
+  return 0;
 };
 
 module.exports = mongoose.model('PaymentConfiguration', paymentConfigurationSchema);

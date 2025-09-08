@@ -6,6 +6,7 @@ const Class = require('../models/Class');
 const Exercise = require('../models/Exercise');
 const Grade = require('../models/Grade');
 const StudentProgress = require('../models/StudentProgress');
+const StudentPayment = require('../models/StudentPayment');
 
 // Helper function to generate JWT token
 const generateToken = (userId) => {
