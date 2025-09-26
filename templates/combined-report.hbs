@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapport Financier Complet</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #fff;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header .subtitle {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .filters-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border-left: 4px solid #667eea;
+        }
+
+        .filters-section h3 {
+            color: #495057;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            align-items: start;
+        }
+
+        .filter-item {
+            background: white;
+            padding: 12px;
+            border-radius: 5px;
+            border: 1px solid #e9ecef;
+        }
+
+        .filter-label {
+            font-weight: bold;
+            color: #6c757d;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .filter-value {
+            color: #495057;
+            font-size: 14px;
+        }
+
+        .summary-section {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-top: 4px solid #667eea;
+            min-height: auto;
+            height: auto;
+        }
+
+        .summary-title {
+            font-size: 22px;
+            color: #495057;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            align-items: start;
+        }
+
+        .summary-card {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+            min-height: 80px;
+            height: auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .summary-card .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 5px;
+        }
+
+        .summary-card .label {
+            font-size: 14px;
+            color: #6c757d;
+            text-transform: uppercase;
+        }
+
+        .summary-card.highlight .value {
+            color: #667eea;
+        }
+
+        .summary-card.income .value {
+            color: #28a745;
+        }
+
+        .summary-card.expense .value {
+            color: #e74c3c;
+        }
+
+        .summary-card.net.positive .value {
+            color: #28a745;
+        }
+
+        .summary-card.net.negative .value {
+            color: #e74c3c;
+        }
+
+        .section {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            min-height: auto;
+            height: auto;
+        }
+
+        .section-title {
+            font-size: 20px;
+            color: #495057;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .table th,
+        .table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .table th {
+            background: #f8f9fa;
+            font-weight: bold;
+            color: #495057;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+
+        .table td {
+            font-size: 14px;
+        }
+
+        .table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .amount {
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .amount.income {
+            color: #28a745;
+        }
+
+        .amount.expense {
+            color: #e74c3c;
+        }
+
+        .amount.positive {
+            color: #28a745;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .status-paid {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-partial {
+            background: #cce7ff;
+            color: #004085;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            color: #6c757d;
+            font-size: 14px;
+        }
+
+        .page-break {
+            page-break-before: always;
+        }
+
+        @media print {
+            body {
+                font-size: 12px;
+            }
+
+            .summary-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .filter-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>Rapport Financier Complet</h1>
+        <div class="subtitle">Analyse complète des revenus et dépenses</div>
+        <div class="subtitle">Généré le {{currentDate}}</div>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="filters-section">
+        <h3>🔍 Filtres Appliqués</h3>
+        <div class="filter-grid">
+            {{#if filters.academicYear}}
+            <div class="filter-item">
+                <div class="filter-label">Année Académique</div>
+                <div class="filter-value">{{filters.academicYear}}</div>
+            </div>
+            {{/if}}
+            {{#if filters.startDate}}
+            <div class="filter-item">
+                <div class="filter-label">Date de Début</div>
+                <div class="filter-value">{{filters.startDate}}</div>
+            </div>
+            {{/if}}
+            {{#if filters.endDate}}
+            <div class="filter-item">
+                <div class="filter-label">Date de Fin</div>
+                <div class="filter-value">{{filters.endDate}}</div>
+            </div>
+            {{/if}}
+        </div>
+    </div>
+
+    <!-- Financial Summary Section -->
+    <div class="summary-section">
+        <h2 class="summary-title">� Résumé Financier Global</h2>
+        <div class="summary-grid">
+            <div class="summary-card income">
+                <div class="value">{{formatCurrency incomeData.summary.total_collecte}} TND</div>
+                <div class="label">Total Revenus Collectés</div>
+            </div>
+            <div class="summary-card expense">
+                <div class="value">{{formatCurrency outcomeData.summary.total_outcome}} TND</div>
+                <div class="label">Total Dépenses</div>
+            </div>
+            <div class="summary-card income">
+                <div class="value">{{formatCurrency incomeData.summary.total_en_attente}} TND</div>
+                <div class="label">Revenus En Attente</div>
+            </div>
+            <div class="summary-card expense">
+                <div class="value">{{formatCurrency outcomeData.summary.pending_salaries}} TND</div>
+                <div class="label">Salaires En Attente</div>
+            </div>
+            <div class="summary-card highlight">
+                <div class="value">{{incomeData.summary.total_etudiants}}</div>
+                <div class="label">Total Étudiants</div>
+            </div>
+            <div class="summary-card highlight">
+                <div class="value">{{incomeData.summary.taux_global}}%</div>
+                <div class="label">Taux de Collecte</div>
+            </div>
+            <div class="summary-card net {{#if netResult.isPositive}}positive{{else}}negative{{/if}}">
+                <div class="value">{{formatCurrency netResult.amount}} TND</div>
+                <div class="label">Résultat Net</div>
+            </div>
+            <div class="summary-card highlight">
+                <div class="value">{{netResult.margin}}%</div>
+                <div class="label">Marge Bénéficiaire</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Revenue Analysis Section -->
+    <div class="section">
+        <h2 class="section-title">📈 Analyse des Revenus par Composant</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Composant</th>
+                    <th>Montant Attendu</th>
+                    <th>Montant Collecté</th>
+                    <th>Montant En Attente</th>
+                    <th>Taux de Collecte</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each incomeData.componentAnalysis}}
+                <tr>
+                    <td><strong>{{this.name}}</strong></td>
+                    <td class="amount">{{formatCurrency this.attendu}} TND</td>
+                    <td class="amount income">{{formatCurrency this.collecte}} TND</td>
+                    <td class="amount">{{formatCurrency this.en_attente}} TND</td>
+                    <td><strong>{{this.taux}}%</strong></td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Level Analysis Section -->
+    <div class="section">
+        <h2 class="section-title">🎓 Revenus par Niveau Scolaire</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Niveau</th>
+                    <th>Catégorie</th>
+                    <th>Nb Étudiants</th>
+                    <th>Montant Collecté</th>
+                    <th>Montant En Attente</th>
+                    <th>Taux de Collecte</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each incomeData.levelAnalysis}}
+                <tr>
+                    <td><strong>{{this.niveau}}</strong></td>
+                    <td>{{capitalize this.categorie}}</td>
+                    <td>{{this.nbr_etudiants}}</td>
+                    <td class="amount income">{{formatCurrency this.collecte}} TND</td>
+                    <td class="amount">{{formatCurrency this.en_attente}} TND</td>
+                    <td><strong>{{this.taux}}%</strong></td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Charge Analysis Section -->
+    <div class="section page-break">
+        <h2 class="section-title">💰 Analyse des Charges par Catégorie</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Catégorie</th>
+                    <th>Montant Total</th>
+                    <th>Nombre de Charges</th>
+                    <th>Montant Moyen</th>
+                    <th>Montant Maximum</th>
+                    <th>Montant Minimum</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each outcomeData.chargeAnalysis}}
+                <tr>
+                    <td><strong>{{this.categorie}}</strong></td>
+                    <td class="amount expense">{{formatCurrency this.total_amount}} TND</td>
+                    <td>{{this.count}}</td>
+                    <td class="amount">{{formatCurrency this.avg_amount}} TND</td>
+                    <td class="amount">{{formatCurrency this.max_amount}} TND</td>
+                    <td class="amount">{{formatCurrency this.min_amount}} TND</td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Salary Analysis Section -->
+    <div class="section">
+        <h2 class="section-title">👥 Analyse des Salaires par Rôle</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Rôle</th>
+                    <th>Type de Paiement</th>
+                    <th>Total Payé</th>
+                    <th>Total En Attente</th>
+                    <th>Total Attendu</th>
+                    <th>Nb Employés</th>
+                    <th>Taux de Paiement</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each outcomeData.salaryAnalysis}}
+                <tr>
+                    <td><strong>{{capitalize this.role}}</strong></td>
+                    <td>{{capitalize this.paymentType}}</td>
+                    <td class="amount positive">{{formatCurrency this.total_paid}} TND</td>
+                    <td class="amount expense">{{formatCurrency this.total_pending}} TND</td>
+                    <td class="amount">{{formatCurrency this.total_expected}} TND</td>
+                    <td>{{this.employee_count}}</td>
+                    <td><strong>{{this.payment_rate}}%</strong></td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Detailed Salaries Section -->
+    {{#if outcomeData.salaries}}
+    <div class="section">
+        <h2 class="section-title">💼 Détail des Salaires</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Employé</th>
+                    <th>Rôle</th>
+                    <th>Montant Total</th>
+                    <th>Montant Payé</th>
+                    <th>Montant Restant</th>
+                    <th>Statut Global</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each outcomeData.salaries}}
+                <tr>
+                    <td>
+                        <strong>{{this.user.name}}</strong>
+                        {{#if this.user.email}}<br><small>{{this.user.email}}</small>{{/if}}
+                    </td>
+                    <td>
+                        {{#if this.user.role}}
+                            {{capitalize this.user.role}}
+                        {{else}}
+                            <span style="color:#e74c3c">Non défini</span>
+                        {{/if}}
+                    </td>
+                    <td class="amount">{{formatCurrency this.totalAmount}} TND</td>
+                    <td class="amount positive">{{formatCurrency this.paidAmount}} TND</td>
+                    <td class="amount expense">{{formatCurrency this.remainingAmount}} TND</td>
+                    <td>
+                        <span class="status-badge {{getSalaryStatusClass this.overallStatus}}">
+                            {{this.overallStatus}}
+                        </span>
+                    </td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+    </div>
+    {{/if}}
+
+    <!-- Student Analysis Section -->
+    {{#if incomeData.studentAnalysis}}
+    <div class="section page-break">
+        <h2 class="section-title">�‍🎓 Analyse Détaillée des Étudiants</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th>Email</th>
+                    <th>Niveau</th>
+                    <th>Catégorie</th>
+                    <th>Montant Attendu</th>
+                    <th>Montant Payé</th>
+                    <th>Montant Restant</th>
+                    <th>Statut</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each incomeData.studentAnalysis}}
+                {{#if @index}}{{#unless (gt @index 19)}}
+                <tr>
+                    <td><strong>{{this.nom}}</strong></td>
+                    <td><small>{{this.email}}</small></td>
+                    <td>{{this.niveau}}</td>
+                    <td>{{capitalize this.categorie}}</td>
+                    <td class="amount">{{formatCurrency this.attendu}} TND</td>
+                    <td class="amount income">{{formatCurrency this.paye}} TND</td>
+                    <td class="amount expense">{{formatCurrency this.restant}} TND</td>
+                    <td>
+                        <span class="status-badge {{getStatusClass this.statut}}">
+                            {{this.statut}}
+                        </span>
+                    </td>
+                </tr>
+                {{/unless}}{{/if}}
+                {{/each}}
+                {{#if (gt incomeData.studentAnalysis.length 20)}}
+                <tr>
+                    <td colspan="8" style="text-align: center; font-style: italic; color: #6c757d;">
+                        ... et {{subtract incomeData.studentAnalysis.length 20}} autres étudiants
+                    </td>
+                </tr>
+                {{/if}}
+            </tbody>
+        </table>
+    </div>
+    {{/if}}
+
+    <div class="footer">
+        <p><strong>Rapport généré automatiquement par le Système de Gestion Éducative</strong></p>
+        <p>Date de génération: {{currentDate}} | Rapport financier complet</p>
+        <p>Ce rapport inclut toutes les données financières disponibles pour la période sélectionnée</p>
+    </div>
+</body>
+
+</html>

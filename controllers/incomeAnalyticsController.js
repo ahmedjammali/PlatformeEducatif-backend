@@ -1,0 +1,357 @@
+// Income Analytics Controller for Educational Platform
+// Provides comprehensive income analysis from student payments
+
+const StudentPayment = require('../models/StudentPayment');
+
+
+
+// Main income analytics endpoint
+const getIncomeAnalytics = async (req, res) => {
+    try {
+        const {
+            grade,
+            component,
+            category,
+            startDate,
+            endDate,
+            academicYear
+        } = req.query;
+        const schoolId = req.schoolId;
+
+        // Build filter object
+        let filter = {};
+
+        if (schoolId) filter.school = schoolId;
+        if (grade) filter.grade = grade;
+        if (category) filter.gradeCategory = category;
+        if (academicYear) filter.academicYear = academicYear;
+
+        // Get all student payments matching basic filters
+        let studentPayments = await StudentPayment.find(filter)
+            .populate('student', 'name email')
+            .populate('school', 'name')
+            .lean();
+
+        // Apply date range filter if provided
+        if (startDate || endDate) {
+            studentPayments = studentPayments.filter(payment => {
+                const paymentDates = [];
+
+                // Collect all payment dates from different components
+                if (payment.inscriptionFee.paymentDate) {
+                    paymentDates.push(payment.inscriptionFee.paymentDate);
+                }
+                if (payment.uniform.paymentDate) {
+                    paymentDates.push(payment.uniform.paymentDate);
+                }
+                if (payment.annualTuitionPayment.paymentDate) {
+                    paymentDates.push(payment.annualTuitionPayment.paymentDate);
+                }
+
+                // Add tuition monthly payments
+                payment.tuitionMonthlyPayments.forEach(monthlyPayment => {
+                    if (monthlyPayment.paymentDate) {
+                        paymentDates.push(monthlyPayment.paymentDate);
+                    }
+                });
+
+                // Add transportation monthly payments
+                payment.transportation.monthlyPayments.forEach(monthlyPayment => {
+                    if (monthlyPayment.paymentDate) {
+                        paymentDates.push(monthlyPayment.paymentDate);
+                    }
+                });
+
+                // Check if any payment date falls within the range
+                return paymentDates.some(date => {
+                    const paymentDate = new Date(date);
+                    if (startDate && paymentDate < new Date(startDate)) return false;
+                    if (endDate && paymentDate > new Date(endDate)) return false;
+                    return true;
+                });
+            });
+        }
+
+        // Filter by component if specified
+        if (component) {
+            studentPayments = studentPayments.filter(payment => {
+                switch (component) {
+                    case 'frais_scolaires':
+                        return payment.totalAmounts.tuition > 0;
+                    case 'frais_inscription':
+                        return payment.totalAmounts.inscriptionFee > 0;
+                    case 'uniforme':
+                        return payment.totalAmounts.uniform > 0;
+                    case 'transport':
+                        return payment.totalAmounts.transportation > 0;
+                    default:
+                        return true;
+                }
+            });
+        }
+
+        // Filter out students with 0 collected amounts
+        studentPayments = studentPayments.filter(payment => {
+            return payment.paidAmounts.grandTotal > 0;
+        });
+
+        // 1. Component Analysis (Analyse par Composant)
+        const componentAnalysis = {
+            frais_scolaires: {
+                name: 'Frais Scolaires',
+                attendu: 0,
+                collecte: 0,
+                en_attente: 0,
+                taux: 0
+            },
+            frais_inscription: {
+                name: 'Frais d\'Inscription',
+                attendu: 0,
+                collecte: 0,
+                en_attente: 0,
+                taux: 0
+            },
+            uniforme: {
+                name: 'Uniforme',
+                attendu: 0,
+                collecte: 0,
+                en_attente: 0,
+                taux: 0
+            },
+            transport: {
+                name: 'Transport',
+                attendu: 0,
+                collecte: 0,
+                en_attente: 0,
+                taux: 0
+            }
+        };
+
+        studentPayments.forEach(payment => {
+            // Frais scolaires
+            componentAnalysis.frais_scolaires.attendu += payment.totalAmounts.tuition;
+            componentAnalysis.frais_scolaires.collecte += payment.paidAmounts.tuition;
+            componentAnalysis.frais_scolaires.en_attente += payment.remainingAmounts.tuition;
+
+            // Frais inscription
+            componentAnalysis.frais_inscription.attendu += payment.totalAmounts.inscriptionFee;
+            componentAnalysis.frais_inscription.collecte += payment.paidAmounts.inscriptionFee;
+            componentAnalysis.frais_inscription.en_attente += payment.remainingAmounts.inscriptionFee;
+
+            // Uniforme
+            componentAnalysis.uniforme.attendu += payment.totalAmounts.uniform;
+            componentAnalysis.uniforme.collecte += payment.paidAmounts.uniform;
+            componentAnalysis.uniforme.en_attente += payment.remainingAmounts.uniform;
+
+            // Transport
+            componentAnalysis.transport.attendu += payment.totalAmounts.transportation;
+            componentAnalysis.transport.collecte += payment.paidAmounts.transportation;
+            componentAnalysis.transport.en_attente += payment.remainingAmounts.transportation;
+        });
+
+        // Calculate rates for component analysis
+        Object.keys(componentAnalysis).forEach(key => {
+            const component = componentAnalysis[key];
+            component.taux = component.attendu > 0 ?
+                Math.round((component.collecte / component.attendu) * 100) : 0;
+        });
+
+        // 2. Level Analysis (Analyse par Niveau)
+        const levelAnalysis = {};
+
+        studentPayments.forEach(payment => {
+            const level = payment.grade;
+
+            if (!levelAnalysis[level]) {
+                levelAnalysis[level] = {
+                    niveau: level,
+                    categorie: payment.gradeCategory,
+                    nbr_etudiants: 0,
+                    attendu: 0,
+                    collecte: 0,
+                    en_attente: 0,
+                    taux: 0
+                };
+            }
+
+            levelAnalysis[level].nbr_etudiants += 1;
+            levelAnalysis[level].attendu += payment.totalAmounts.grandTotal;
+            levelAnalysis[level].collecte += payment.paidAmounts.grandTotal;
+            levelAnalysis[level].en_attente += payment.remainingAmounts.grandTotal;
+        });
+
+        // Calculate rates for level analysis
+        Object.keys(levelAnalysis).forEach(level => {
+            const analysis = levelAnalysis[level];
+            analysis.taux = analysis.attendu > 0 ?
+                Math.round((analysis.collecte / analysis.attendu) * 100) : 0;
+        });
+
+        // Convert to array and sort by grade category and name
+        const levelAnalysisArray = Object.values(levelAnalysis).sort((a, b) => {
+            if (a.categorie !== b.categorie) {
+                const categoryOrder = { maternelle: 1, primaire: 2, secondaire: 3 };
+                return categoryOrder[a.categorie] - categoryOrder[b.categorie];
+            }
+            return a.niveau.localeCompare(b.niveau);
+        });
+
+        // 3. Student Analysis (Analyse par Étudiant)
+        const studentAnalysis = studentPayments.map(payment => {
+            // Calculate discount amount
+            let discountAmount = 0;
+            if (payment.discount && payment.discount.enabled) {
+                if (payment.discount.type === 'annual') {
+                    discountAmount = (payment.totalAmounts.tuition * payment.discount.percentage) / 100;
+                } else if (payment.discount.type === 'monthly') {
+                    discountAmount = (payment.tuitionFees.monthlyAmount * payment.discount.percentage) / 100 * 12;
+                }
+            }
+
+            // Determine payment status
+            let statut = 'En cours';
+            if (payment.remainingAmounts.grandTotal === 0) {
+                statut = 'Payé';
+            } else if (payment.paidAmounts.grandTotal === 0) {
+                statut = 'Non payé';
+            } else if (payment.remainingAmounts.grandTotal > payment.totalAmounts.grandTotal * 0.5) {
+                statut = 'Partiellement payé';
+            }
+
+            return {
+                studentId: payment.student._id,
+                nom: payment.student.name,
+                email: payment.student.email,
+                niveau: payment.grade,
+                categorie: payment.gradeCategory,
+                attendu: payment.totalAmounts.grandTotal,
+                paye: payment.paidAmounts.grandTotal,
+                restant: payment.remainingAmounts.grandTotal,
+                statut: statut,
+                remise: discountAmount,
+                pourcentage_remise: payment.discount && payment.discount.enabled ? payment.discount.percentage : 0,
+                academicYear: payment.academicYear
+            };
+        });
+
+        // Sort student analysis by name
+        studentAnalysis.sort((a, b) => a.nom.localeCompare(b.nom));
+
+        // 4. Summary Statistics
+        const summary = {
+            total_etudiants: studentPayments.length,
+            total_attendu: studentPayments.reduce((sum, payment) => sum + payment.totalAmounts.grandTotal, 0),
+            total_collecte: studentPayments.reduce((sum, payment) => sum + payment.paidAmounts.grandTotal, 0),
+            total_en_attente: studentPayments.reduce((sum, payment) => sum + payment.remainingAmounts.grandTotal, 0),
+            taux_global: 0,
+            total_remises: studentAnalysis.reduce((sum, student) => sum + student.remise, 0)
+        };
+
+        summary.taux_global = summary.total_attendu > 0 ?
+            Math.round((summary.total_collecte / summary.total_attendu) * 100) : 0;
+
+        // 5. Category Breakdown
+        const categoryBreakdown = {
+            maternelle: { etudiants: 0, attendu: 0, collecte: 0, en_attente: 0, taux: 0 },
+            primaire: { etudiants: 0, attendu: 0, collecte: 0, en_attente: 0, taux: 0 },
+            secondaire: { etudiants: 0, attendu: 0, collecte: 0, en_attente: 0, taux: 0 }
+        };
+
+        studentPayments.forEach(payment => {
+            const category = payment.gradeCategory;
+            if (categoryBreakdown[category]) {
+                categoryBreakdown[category].etudiants += 1;
+                categoryBreakdown[category].attendu += payment.totalAmounts.grandTotal;
+                categoryBreakdown[category].collecte += payment.paidAmounts.grandTotal;
+                categoryBreakdown[category].en_attente += payment.remainingAmounts.grandTotal;
+            }
+        });
+
+        // Calculate rates for category breakdown
+        Object.keys(categoryBreakdown).forEach(category => {
+            const cat = categoryBreakdown[category];
+            cat.taux = cat.attendu > 0 ? Math.round((cat.collecte / cat.attendu) * 100) : 0;
+        });
+
+        // Response object
+        const response = {
+            success: true,
+            message: 'Analyse des revenus récupérée avec succès',
+            data: {
+                summary,
+                componentAnalysis,
+                levelAnalysis: levelAnalysisArray,
+                studentAnalysis,
+                categoryBreakdown,
+                filters: {
+                    schoolId,
+                    grade,
+                    component,
+                    category,
+                    startDate,
+                    endDate,
+                    academicYear
+                }
+            }
+        };
+
+        res.status(200).json(response);
+    } catch (error) {
+        console.error('Erreur lors de la récupération de l\'analyse des revenus:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur interne du serveur',
+            error: error.message
+        });
+    }
+};
+
+// Get available filter options
+const getIncomeFilters = async (req, res) => {
+    try {
+        const schoolId = req.schoolId;
+        let filter = {};
+        if (schoolId) filter.school = schoolId;
+
+        // Get unique grades
+        const grades = await StudentPayment.distinct('grade', filter);
+
+        // Get unique academic years
+        const academicYears = await StudentPayment.distinct('academicYear', filter);
+
+        // Get unique categories
+        const categories = await StudentPayment.distinct('gradeCategory', filter);
+
+        // Payment components
+        const components = [
+            { value: 'frais_scolaires', label: 'Frais Scolaires' },
+            { value: 'frais_inscription', label: 'Frais d\'Inscription' },
+            { value: 'uniforme', label: 'Uniforme' },
+            { value: 'transport', label: 'Transport' }
+        ];
+
+        res.status(200).json({
+            success: true,
+            data: {
+                grades: grades.sort(),
+                categories: categories.sort(),
+                components,
+                academicYears: academicYears.sort().reverse()
+            }
+        });
+    } catch (error) {
+        console.error('Erreur lors de la récupération des filtres:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur interne du serveur',
+            error: error.message
+        });
+    }
+};
+
+
+
+module.exports = {
+    getIncomeAnalytics,
+    getIncomeFilters,
+};

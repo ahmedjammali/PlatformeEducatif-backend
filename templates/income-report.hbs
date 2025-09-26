@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewpor        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            align-items: start;
+        }ntent="width=device-width, initial-scale=1.0">
+    <title>Rapport d'Analyse des Revenus</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #fff;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header .subtitle {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .filters-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border-left: 4px solid #667eea;
+        }
+
+        .filters-section h3 {
+            color: #495057;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            align-items: start;
+        }
+
+        .filter-item {
+            background: white;
+            padding: 12px;
+            border-radius: 5px;
+            border: 1px solid #e9ecef;
+        }
+
+        .filter-label {
+            font-weight: bold;
+            color: #6c757d;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .filter-value {
+            color: #495057;
+            font-size: 14px;
+        }
+
+        .summary-section {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-top: 4px solid #28a745;
+            min-height: auto;
+            height: auto;
+        }
+
+        .summary-title {
+            font-size: 22px;
+            color: #495057;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .summary-card {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+            min-height: 80px;
+            height: auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .summary-card .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 5px;
+        }
+
+        .summary-card .label {
+            font-size: 14px;
+            color: #6c757d;
+            text-transform: uppercase;
+        }
+
+        .summary-card.highlight .value {
+            color: #28a745;
+        }
+
+        .section {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            min-height: auto;
+            height: auto;
+        }
+
+        .section-title {
+            font-size: 20px;
+            color: #495057;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .table th,
+        .table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .table th {
+            background: #f8f9fa;
+            font-weight: bold;
+            color: #495057;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+
+        .table td {
+            font-size: 14px;
+        }
+
+        .table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .progress-bar {
+            background: #e9ecef;
+            border-radius: 10px;
+            height: 8px;
+            overflow: hidden;
+            margin: 5px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745, #20c997);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .status-paye {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-en-cours {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-non-paye {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-partiellement-paye {
+            background: #cce7ff;
+            color: #004085;
+        }
+
+        .amount {
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .amount.positive {
+            color: #28a745;
+        }
+
+        .amount.negative {
+            color: #dc3545;
+        }
+
+        .chart-placeholder {
+            height: 200px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border: 2px dashed #dee2e6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6c757d;
+            font-style: italic;
+            border-radius: 8px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            color: #6c757d;
+            font-size: 14px;
+        }
+
+        .page-break {
+            page-break-before: always;
+        }
+
+        @media print {
+            body {
+                font-size: 12px;
+            }
+
+            .summary-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .filter-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>Rapport d'Analyse des Revenus</h1>
+        <div class="subtitle">Analyse complète des revenus de l'établissement</div>
+        <div class="subtitle">Généré le {{currentDate}}</div>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="filters-section">
+        <h3>🔍 Filtres Appliqués</h3>
+        <div class="filter-grid">
+            {{#if filters.academicYear}}
+            <div class="filter-item">
+                <div class="filter-label">Année Académique</div>
+                <div class="filter-value">{{filters.academicYear}}</div>
+            </div>
+            {{/if}}
+            {{#if filters.grade}}
+            <div class="filter-item">
+                <div class="filter-label">Niveau</div>
+                <div class="filter-value">{{filters.grade}}</div>
+            </div>
+            {{/if}}
+            {{#if filters.category}}
+            <div class="filter-item">
+                <div class="filter-label">Catégorie</div>
+                <div class="filter-value">{{filters.category}}</div>
+            </div>
+            {{/if}}
+            {{#if filters.component}}
+            <div class="filter-item">
+                <div class="filter-label">Composant</div>
+                <div class="filter-value">{{filters.component}}</div>
+            </div>
+            {{/if}}
+            {{#if filters.startDate}}
+            <div class="filter-item">
+                <div class="filter-label">Date de Début</div>
+                <div class="filter-value">{{filters.startDate}}</div>
+            </div>
+            {{/if}}
+            {{#if filters.endDate}}
+            <div class="filter-item">
+                <div class="filter-label">Date de Fin</div>
+                <div class="filter-value">{{filters.endDate}}</div>
+            </div>
+            {{/if}}
+        </div>
+    </div>
+
+    <!-- Summary Section -->
+    <div class="summary-section">
+        <h2 class="summary-title">📊 Résumé Exécutif</h2>
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="value">{{summary.total_etudiants}}</div>
+                <div class="label">Total Étudiants</div>
+            </div>
+            <div class="summary-card">
+                <div class="value">{{formatCurrency summary.total_attendu}} TND</div>
+                <div class="label">Total Attendu</div>
+            </div>
+            <div class="summary-card highlight">
+                <div class="value">{{formatCurrency summary.total_collecte}} TND</div>
+                <div class="label">Total Collecté</div>
+            </div>
+            <div class="summary-card">
+                <div class="value">{{formatCurrency summary.total_en_attente}} TND</div>
+                <div class="label">Total En Attente</div>
+            </div>
+            <div class="summary-card highlight">
+                <div class="value">{{summary.taux_global}}%</div>
+                <div class="label">Taux de Collecte Global</div>
+            </div>
+            <div class="summary-card">
+                <div class="value">{{formatCurrency summary.total_remises}} TND</div>
+                <div class="label">Total Remises</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Component Analysis Section -->
+    <div class="section">
+        <h2 class="section-title">💰 Analyse par Composant</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Composant</th>
+                    <th>Montant Attendu</th>
+                    <th>Montant Collecté</th>
+                    <th>En Attente</th>
+                    <th>Taux de Collecte</th>
+                    <th>Progression</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each componentAnalysis}}
+                <tr>
+                    <td><strong>{{this.name}}</strong></td>
+                    <td class="amount">{{formatCurrency this.attendu}} TND</td>
+                    <td class="amount positive">{{formatCurrency this.collecte}} TND</td>
+                    <td class="amount">{{formatCurrency this.en_attente}} TND</td>
+                    <td><strong>{{this.taux}}%</strong></td>
+                    <td>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: {{this.taux}}%"></div>
+                        </div>
+                    </td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Category Breakdown Section -->
+    <div class="section">
+        <h2 class="section-title">🎓 Analyse par Catégorie d'Éducation</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Catégorie</th>
+                    <th>Nombre d'Étudiants</th>
+                    <th>Montant Attendu</th>
+                    <th>Montant Collecté</th>
+                    <th>En Attente</th>
+                    <th>Taux de Collecte</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each categoryBreakdown}}
+                <tr>
+                    <td><strong>{{capitalize @key}}</strong></td>
+                    <td>{{this.etudiants}}</td>
+                    <td class="amount">{{formatCurrency this.attendu}} TND</td>
+                    <td class="amount positive">{{formatCurrency this.collecte}} TND</td>
+                    <td class="amount">{{formatCurrency this.en_attente}} TND</td>
+                    <td><strong>{{this.taux}}%</strong></td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Level Analysis Section -->
+    <div class="section page-break">
+        <h2 class="section-title">📚 Analyse par Niveau Scolaire</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Niveau</th>
+                    <th>Catégorie</th>
+                    <th>Nb Étudiants</th>
+                    <th>Attendu</th>
+                    <th>Collecté</th>
+                    <th>En Attente</th>
+                    <th>Taux</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each levelAnalysis}}
+                <tr>
+                    <td><strong>{{this.niveau}}</strong></td>
+                    <td>{{capitalize this.categorie}}</td>
+                    <td>{{this.nbr_etudiants}}</td>
+                    <td class="amount">{{formatCurrency this.attendu}} TND</td>
+                    <td class="amount positive">{{formatCurrency this.collecte}} TND</td>
+                    <td class="amount">{{formatCurrency this.en_attente}} TND</td>
+                    <td><strong>{{this.taux}}%</strong></td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Student Analysis Section -->
+    <div class="section page-break">
+        <h2 class="section-title">👥 Analyse Détaillée par Étudiant</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th>Email</th>
+                    <th>Niveau</th>
+                    <th>Attendu</th>
+                    <th>Payé</th>
+                    <th>Restant</th>
+                    <th>Statut</th>
+                    <th>Remise</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each studentAnalysis}}
+                <tr>
+                    <td><strong>{{this.nom}}</strong></td>
+                    <td>{{this.email}}</td>
+                    <td>{{this.niveau}}</td>
+                    <td class="amount">{{formatCurrency this.attendu}} TND</td>
+                    <td class="amount positive">{{formatCurrency this.paye}} TND</td>
+                    <td class="amount">{{formatCurrency this.restant}} TND</td>
+                    <td>
+                        <span class="status-badge {{getStatusClass this.statut}}">
+                            {{this.statut}}
+                        </span>
+                    </td>
+                    <td class="amount">
+                        {{formatCurrency this.remise}} TND
+                        {{#if this.pourcentage_remise}}
+                        ({{this.pourcentage_remise}}%)
+                        {{/if}}
+                    </td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="footer">
+        <p><strong>Rapport généré automatiquement par le Système de Gestion Éducative</strong></p>
+        <p>Date de génération: {{currentDate}} | Page générée pour l'analyse des revenus</p>
+    </div>
+</body>
+
+</html>
