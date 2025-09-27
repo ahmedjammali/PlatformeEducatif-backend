@@ -24,10 +24,10 @@ const userSchema = new mongoose.Schema({
     trim: true
   },
   role: {
-    type: String,
-    enum: ['superadmin', 'admin', 'teacher', 'student'],
-    required: true
-  },
+  type: String,
+  enum: ['superadmin', 'admin', 'teacher', 'student', 'ouvrier'],
+  required: true
+},
   school: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'School',
@@ -35,13 +35,14 @@ const userSchema = new mongoose.Schema({
   },
   
   // Teacher-specific fields
-  phoneNumber: {
-    type: String,
-    required: function() {
-      return this.role === 'teacher';
-    },
-    trim: true
+  // Ouvrier-specific fields
+phoneNumber: {
+  type: String,
+  required: function() {
+    return this.role === 'teacher' || this.role === 'ouvrier';
   },
+  trim: true
+},
   
   // Student-specific fields
   parentName: {

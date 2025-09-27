@@ -7,6 +7,10 @@ const Exercise = require('../models/Exercise');
 const Grade = require('../models/Grade');
 const StudentProgress = require('../models/StudentProgress');
 const StudentPayment = require('../models/StudentPayment');
+const TeacherFinancialInfo = require('../models/TeacherFinancialInfo');
+const TeacherPaymentDossier = require('../models/TeacherPaymentDossier');
+const OuvrierFinancialInfo = require('../models/OuvrierFinancialInfo');
+const OuvrierPaymentDossier = require('../models/OuvrierPaymentDossier');
 
 // Helper function to generate JWT token
 const generateToken = (userId) => {
@@ -36,7 +40,7 @@ const login = async (req, res) => {
         return res.status(401).json({ message: 'Invalid email or password' });
       }
     } else {
-      // For teacher/student, check password only if they have one
+      // For teacher/student/ouvrier, check password only if they have one
       if (user.password && password) {
         const isValidPassword = await user.comparePassword(password);
         if (!isValidPassword) {
@@ -45,7 +49,7 @@ const login = async (req, res) => {
       } else if (user.password && !password) {
         return res.status(401).json({ message: 'Password is required' });
       }
-      // If no password set for teacher/student, allow login without password
+      // If no password set for teacher/student/ouvrier, allow login without password
     }
 
     // Check if user has access
@@ -66,7 +70,7 @@ const login = async (req, res) => {
       email: user.email,
       role: user.role,
       school: user.school,
-      ...(user.role === 'teacher' && { phoneNumber: user.phoneNumber }),
+      ...(['teacher', 'ouvrier'].includes(user.role) && { phoneNumber: user.phoneNumber }),
       ...(user.role === 'student' && { 
         parentName: user.parentName,
         parentCin: user.parentCin,
@@ -101,17 +105,17 @@ const createUser = async (req, res) => {
     const creatorRole = req.userRole;
 
     // Validation: Check role hierarchy
-    if (creatorRole === 'admin' && !['teacher', 'student'].includes(role)) {
+    if (creatorRole === 'admin' && !['teacher', 'student', 'ouvrier'].includes(role)) {
       return res.status(403).json({ 
-        message: 'Admin can only create teacher and student accounts' 
+        message: 'Admin can only create teacher, student, and ouvrier accounts' 
       });
     }
 
     // Validate required fields based on role
-    if (role === 'teacher') {
+    if (['teacher', 'ouvrier'].includes(role)) {
       if (!phoneNumber) {
         return res.status(400).json({ 
-          message: 'Phone number is required for teacher accounts' 
+          message: 'Phone number is required for teacher and ouvrier accounts' 
         });
       }
     }
@@ -157,7 +161,7 @@ const createUser = async (req, res) => {
     }
 
     // Add role-specific fields
-    if (role === 'teacher') {
+    if (['teacher', 'ouvrier'].includes(role)) {
       userData.phoneNumber = phoneNumber;
     }
 
@@ -176,14 +180,13 @@ const createUser = async (req, res) => {
       name: savedUser.name,
       email: savedUser.email,
       role: savedUser.role,
-      ...(savedUser.role === 'teacher' && { phoneNumber: savedUser.phoneNumber }),
+      ...(['teacher', 'ouvrier'].includes(savedUser.role) && { phoneNumber: savedUser.phoneNumber }),
       ...(savedUser.role === 'student' && { 
         parentName: savedUser.parentName,
         parentCin: savedUser.parentCin,
         parentPhoneNumber: savedUser.parentPhoneNumber
       })
     };
-
     res.status(201).json({
       message: `${role} account created successfully`,
       user: userResponse
@@ -208,7 +211,7 @@ const getAllUsers = async (req, res) => {
 
     } else if (userRole === 'admin') {
       // Admin → sees only teacher & student (not other admins/superadmins)
-      filter.role = role ? role : { $in: ['teacher', 'student'] };
+      filter.role = role ? role : { $in: ['teacher', 'student', 'ouvrier'] };
 
     } else if (userRole === 'teacher') {
       // Teacher → sees only students
@@ -298,7 +301,8 @@ const updateUser = async (req, res) => {
     if (email) updates.email = email;
 
     // Add role-specific updates
-    if (user.role === 'teacher' && phoneNumber) {
+      // Add role-specific updates
+    if (['teacher', 'ouvrier'].includes(user.role) && phoneNumber) {
       updates.phoneNumber = phoneNumber;
     }
 
@@ -326,8 +330,6 @@ const updateUser = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
-// Delete user
 const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -368,9 +370,20 @@ const deleteUser = async (req, res) => {
       // Delete all exercises created by this teacher
       const deletedExercises = await Exercise.deleteMany({ createdBy: id });
       
-      console.log(`Deleted ${deletedExercises.deletedCount} exercises and ${deletedProgress.deletedCount} student progress records for teacher ${user.name}`);
+      // ✅ NEW: Delete teacher financial information and payment dossiers
+      const deletedPaymentDossiers = await TeacherPaymentDossier.deleteMany({ teacher: id });
+      const deletedFinancialInfo = await TeacherFinancialInfo.deleteMany({ teacher: id });
       
-    } else if (user.role === 'student') {
+      console.log(`Deleted ${deletedExercises.deletedCount} exercises, ${deletedProgress.deletedCount} student progress records, ${deletedPaymentDossiers.deletedCount} payment dossiers, and ${deletedFinancialInfo.deletedCount} financial info records for teacher ${user.name}`);
+      
+    } 
+    else if (user.role === 'ouvrier') {
+      // ✅ NEW: Delete ouvrier financial information and payment dossiers
+      const deletedPaymentDossiers = await OuvrierPaymentDossier.deleteMany({ ouvrier: id });
+      const deletedFinancialInfo = await OuvrierFinancialInfo.deleteMany({ ouvrier: id });
+      
+      console.log(`Deleted ${deletedPaymentDossiers.deletedCount} payment dossiers and ${deletedFinancialInfo.deletedCount} financial info records for ouvrier ${user.name}`);}
+    else if (user.role === 'student') {
       // Remove student from their class
       if (user.studentClass) {
         await Class.findByIdAndUpdate(
@@ -385,7 +398,7 @@ const deleteUser = async (req, res) => {
       // Delete all student progress records for this student
       const deletedProgress = await StudentProgress.deleteMany({ student: id });
       
-      // ✅ NEW: Delete all payment records for this student
+      // Delete all payment records for this student
       const deletedPayments = await StudentPayment.deleteMany({ student: id });
       
       console.log(`Deleted ${deletedGrades.deletedCount} grades, ${deletedProgress.deletedCount} progress records, and ${deletedPayments.deletedCount} payment records for student ${user.name}`);
@@ -403,7 +416,8 @@ const deleteUser = async (req, res) => {
       }),
       ...(user.role === 'teacher' && { 
         exercisesDeleted: true, 
-        progressDeleted: true 
+        progressDeleted: true,
+        financialDataDeleted: true
       })
     });
   } catch (error) {
@@ -454,11 +468,12 @@ const setPassword = async (req, res) => {
     }
 
     // Only allow setting password for teacher/student roles
-    if (!['teacher', 'student'].includes(user.role)) {
-      return res.status(403).json({ 
-        message: 'Password setting is only allowed for teachers and students' 
-      });
-    }
+    // Only allow setting password for teacher/student/ouvrier roles
+      if (!['teacher', 'student', 'ouvrier'].includes(user.role)) {
+        return res.status(403).json({ 
+          message: 'Password setting is only allowed for teachers, students, and ouvriers' 
+        });
+      }
 
     // Set password
     user.password = newPassword;

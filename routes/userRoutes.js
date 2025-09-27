@@ -29,7 +29,7 @@ const validateUserCreation = (req, res, next) => {
     });
   }
 
-  const validRoles = ['superadmin', 'admin', 'teacher', 'student'];
+  const validRoles = ['superadmin', 'admin', 'teacher', 'student', 'ouvrier'];
   if (!validRoles.includes(role)) {
     return res.status(400).json({   
       message: 'Invalid role. Must be one of: ' + validRoles.join(', ') 
@@ -49,7 +49,6 @@ const validateLogin = (req, res, next) => {
       message: 'Email and password are required' 
     });
   }
-
   next();
 };
 

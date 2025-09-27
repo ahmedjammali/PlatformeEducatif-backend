@@ -5,6 +5,7 @@ const cors = require('cors');
 const app = express();
 const { setupUploadDirectories, setupFileServing } = require('./config/fileSetup');
 const notificationRoutes = require('./routes/NotificationRoutes');
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -19,13 +20,17 @@ const exerciseRoutes = require('./routes/exerciseRoutes');
 const gradeRoutes = require('./routes/gradeRoutes');
 const progressRoutes = require('./routes/progressRoutes');
 const contactRoutes = require('./routes/contactRoutes');
-
 const chatRoutes = require('./routes/chatRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 
-
+// ✅ Financial management routes
+const teacherFinancialRoutes = require('./routes/teacherFinancialRoutes');
+const ouvrierFinancialRoutes = require('./routes/ouvrierFinancialRoutes');
+const chargeRoutes = require('./routes/chargeRoutes');
+const budgetRoutes = require('./routes/budgetRoutes');
 
 setupUploadDirectories().catch(console.error);
+
 // API Routes
 app.use('/api/schools', schoolRoutes);
 app.use('/api/users', userRoutes);
@@ -36,11 +41,17 @@ app.use('/api/grades', gradeRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/notifications', notificationRoutes);
-
 app.use('/api/payments', paymentRoutes); 
-
 app.use('/api/chat', chatRoutes);
+
+// ✅ Financial management routes
+app.use('/api/teacher-financial', teacherFinancialRoutes);
+app.use('/api/ouvrier-financial', ouvrierFinancialRoutes);
+app.use('/api/charges', chargeRoutes);
+app.use('/api/budget', budgetRoutes);
+
 setupFileServing(app);
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.status(200).json({ 
