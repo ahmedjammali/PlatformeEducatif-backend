@@ -30,6 +30,7 @@ const salaryRoutes = require("./routes/salaryRoutes");
 const incomeAnalyticsRoutes = require("./routes/incomeAnalyticsRoutes");
 const outcomeAnalyticsRoutes = require("./routes/outcomeAnalyticsRoutes");
 const exportRoutes = require("./routes/exportRoutes");
+const scheduleRoutes = require("./routes/scheduleRoutes");
 
 setupUploadDirectories().catch(console.error);
 // API Routes
@@ -42,6 +43,7 @@ app.use("/api/grades", gradeRoutes);
 app.use("/api/progress", progressRoutes);
 app.use("/api/contacts", contactRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/schedules", scheduleRoutes);
 
 app.use("/api/payments", paymentRoutes);
 app.use("/api/charges", chargeRoutes);
