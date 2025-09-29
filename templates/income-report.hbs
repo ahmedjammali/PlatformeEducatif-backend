@@ -466,9 +466,8 @@
                     <th>Nom</th>
                     <th>Email</th>
                     <th>Niveau</th>
-                    <th>Attendu</th>
-                    <th>Payé</th>
-                    <th>Restant</th>
+                    <th>Total Payé</th>
+                    <th>Détail des Paiements</th>
                     <th>Statut</th>
                     <th>Remise</th>
                 </tr>
@@ -479,9 +478,23 @@
                     <td><strong>{{this.nom}}</strong></td>
                     <td>{{this.email}}</td>
                     <td>{{this.niveau}}</td>
-                    <td class="amount">{{formatCurrency this.attendu}} TND</td>
-                    <td class="amount positive">{{formatCurrency this.paye}} TND</td>
-                    <td class="amount">{{formatCurrency this.restant}} TND</td>
+                    <td class="amount positive">{{formatCurrency this.totalPaid}} TND</td>
+                    <td>
+                        <div style="font-size: 12px;">
+                            {{#if this.paymentBreakdown.inscriptionFee.applicable}}
+                                <div><strong>Frais d'Inscription:</strong> {{formatCurrency this.paymentBreakdown.inscriptionFee.paid}} TND</div>
+                            {{/if}}
+                            {{#if this.paymentBreakdown.fraisScolaires.paid}}
+                                <div><strong>Frais Scolaires:</strong> {{formatCurrency this.paymentBreakdown.fraisScolaires.paid}} TND</div>
+                            {{/if}}
+                            {{#if this.paymentBreakdown.uniform.applicable}}
+                                <div><strong>Uniforme:</strong> {{formatCurrency this.paymentBreakdown.uniform.paid}} TND</div>
+                            {{/if}}
+                            {{#if this.paymentBreakdown.transport.applicable}}
+                                <div><strong>Transport:</strong> {{formatCurrency this.paymentBreakdown.transport.paid}} TND</div>
+                            {{/if}}
+                        </div>
+                    </td>
                     <td>
                         <span class="status-badge {{getStatusClass this.statut}}">
                             {{this.statut}}

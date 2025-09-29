@@ -320,7 +320,13 @@ const updateExtraHours = async (req, res) => {
     // Update extra hours and recalculate amounts
     payment.extraHours = extraHours || 0;
     payment.extraAmount = payment.extraHours * (config.extraHourlyRate || 0);
-    payment.totalAmount = payment.regularAmount + payment.extraAmount;
+
+    // Calculate total based on payment type
+    if (payment.paymentType === "monthly") {
+      payment.totalAmount = (payment.baseSalaryAmount || 0) + payment.extraAmount;
+    } else {
+      payment.totalAmount = (payment.regularAmount || 0) + payment.extraAmount;
+    }
 
     salaryRecord.updatedBy = req.user.id;
     await salaryRecord.save();
@@ -627,7 +633,7 @@ const updatePaymentHours = async (req, res) => {
       payment.extraHours = Math.max(0, extraHours || 0);
     }
 
-    // Recalculate amounts for hourly payments
+    // Recalculate amounts based on payment type
     if (config.paymentType === "hourly") {
       const regularHours = Math.max(0, payment.regularHours || 0);
       const hoursWorked = Math.max(0, payment.actualHoursWorked || 0);
@@ -650,6 +656,11 @@ const updatePaymentHours = async (req, res) => {
 
       // Total amount
       payment.totalAmount = payment.regularAmount + payment.extraAmount;
+    } else if (config.paymentType === "monthly") {
+      // For monthly payments, recalculate total when extra hours change
+      const extraHourlyRate = Math.max(0, config.extraHourlyRate || 0);
+      payment.extraAmount = (payment.extraHours || 0) * extraHourlyRate;
+      payment.totalAmount = (payment.baseSalaryAmount || 0) + payment.extraAmount;
     }
 
     salaryRecord.updatedBy = req.user.id;

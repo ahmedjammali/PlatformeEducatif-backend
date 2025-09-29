@@ -218,15 +218,43 @@ const getIncomeAnalytics = async (req, res) => {
                 statut = 'Partiellement payé';
             }
 
+            // Create detailed payment breakdown
+            const paymentBreakdown = {
+                inscriptionFee: {
+                    applicable: payment.inscriptionFee && payment.inscriptionFee.applicable,
+                    total: payment.totalAmounts.inscriptionFee || 0,
+                    paid: payment.paidAmounts.inscriptionFee || 0,
+                    isPaid: payment.inscriptionFee && payment.inscriptionFee.isPaid
+                },
+                fraisScolaires: {
+                    total: payment.totalAmounts.tuition || 0,
+                    paid: payment.paidAmounts.tuition || 0,
+                    type: payment.paymentType,
+                    monthlyAmount: payment.tuitionFees.monthlyAmount || 0
+                },
+                uniform: {
+                    applicable: payment.uniform && payment.uniform.purchased,
+                    total: payment.totalAmounts.uniform || 0,
+                    paid: payment.paidAmounts.uniform || 0,
+                    isPaid: payment.uniform && payment.uniform.isPaid
+                },
+                transport: {
+                    applicable: payment.transportation && payment.transportation.using,
+                    total: payment.totalAmounts.transportation || 0,
+                    paid: payment.paidAmounts.transportation || 0,
+                    type: payment.transportation && payment.transportation.type,
+                    monthlyAmount: payment.transportation.monthlyPrice || 0
+                }
+            };
+
             return {
                 studentId: payment.student._id,
                 nom: payment.student.name,
                 email: payment.student.email,
                 niveau: payment.grade,
                 categorie: payment.gradeCategory,
-                attendu: payment.totalAmounts.grandTotal,
-                paye: payment.paidAmounts.grandTotal,
-                restant: payment.remainingAmounts.grandTotal,
+                totalPaid: payment.paidAmounts.grandTotal,
+                paymentBreakdown: paymentBreakdown,
                 statut: statut,
                 remise: discountAmount,
                 pourcentage_remise: payment.discount && payment.discount.enabled ? payment.discount.percentage : 0,

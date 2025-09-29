@@ -198,24 +198,31 @@ async function generateIncomeExcel(data, filters) {
     // Student Analysis Sheet
     const studentSheet = workbook.addWorksheet('Analyse par Étudiant');
 
-    const studentHeaders = ['Nom', 'Email', 'Niveau', 'Catégorie', 'Attendu (TND)', 'Payé (TND)', 'Restant (TND)', 'Statut', 'Remise (TND)', '% Remise'];
+    const studentHeaders = ['Nom', 'Email', 'Niveau', 'Catégorie', 'Total Payé (TND)', 'Frais Inscription (TND)', 'Frais Scolaires (TND)', 'Uniforme (TND)', 'Transport (TND)', 'Statut', 'Remise (TND)', '% Remise'];
     studentSheet.addRow(studentHeaders);
     const studentHeaderRow = studentSheet.getRow(1);
     studentHeaderRow.font = { bold: true };
     studentHeaderRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
 
     data.studentAnalysis.forEach(student => {
+        const inscriptionPaid = student.paymentBreakdown?.inscriptionFee?.paid || 0;
+        const fraisScolairesPaid = student.paymentBreakdown?.fraisScolaires?.paid || 0;
+        const uniformPaid = student.paymentBreakdown?.uniform?.paid || 0;
+        const transportPaid = student.paymentBreakdown?.transport?.paid || 0;
+
         studentSheet.addRow([
             student.nom,
             student.email,
             student.niveau,
             student.categorie,
-            student.attendu,
-            student.paye,
-            student.restant,
+            student.totalPaid || 0,
+            inscriptionPaid,
+            fraisScolairesPaid,
+            uniformPaid,
+            transportPaid,
             student.statut,
-            student.remise,
-            student.pourcentage_remise
+            student.remise || 0,
+            student.pourcentage_remise || 0
         ]);
     });
 
