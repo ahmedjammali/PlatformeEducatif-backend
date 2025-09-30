@@ -184,25 +184,92 @@ const getIncomeAnalytics = async (req, res) => {
         };
 
         studentPayments.forEach(payment => {
+            // Calculate date-range specific paid amounts for component analysis
+            let dateRangePaidAmounts = {
+                inscriptionFee: 0,
+                tuition: 0,
+                uniform: 0,
+                transportation: 0
+            };
+
+            if (startDate || endDate) {
+                // Check inscription fee payment
+                if (payment.inscriptionFee.paymentDate) {
+                    const paymentDate = new Date(payment.inscriptionFee.paymentDate);
+                    if ((!startDate || paymentDate >= new Date(startDate)) &&
+                        (!endDate || paymentDate <= new Date(endDate))) {
+                        dateRangePaidAmounts.inscriptionFee = payment.paidAmounts.inscriptionFee || 0;
+                    }
+                }
+
+                // Check uniform payment
+                if (payment.uniform.paymentDate) {
+                    const paymentDate = new Date(payment.uniform.paymentDate);
+                    if ((!startDate || paymentDate >= new Date(startDate)) &&
+                        (!endDate || paymentDate <= new Date(endDate))) {
+                        dateRangePaidAmounts.uniform = payment.paidAmounts.uniform || 0;
+                    }
+                }
+
+                // Check annual tuition payment
+                if (payment.annualTuitionPayment.paymentDate) {
+                    const paymentDate = new Date(payment.annualTuitionPayment.paymentDate);
+                    if ((!startDate || paymentDate >= new Date(startDate)) &&
+                        (!endDate || paymentDate <= new Date(endDate))) {
+                        dateRangePaidAmounts.tuition += payment.annualTuitionPayment.amount || 0;
+                    }
+                }
+
+                // Check monthly tuition payments
+                payment.tuitionMonthlyPayments.forEach(monthlyPayment => {
+                    if (monthlyPayment.paymentDate) {
+                        const paymentDate = new Date(monthlyPayment.paymentDate);
+                        if ((!startDate || paymentDate >= new Date(startDate)) &&
+                            (!endDate || paymentDate <= new Date(endDate))) {
+                            dateRangePaidAmounts.tuition += monthlyPayment.amount || 0;
+                        }
+                    }
+                });
+
+                // Check monthly transportation payments
+                payment.transportation.monthlyPayments.forEach(monthlyPayment => {
+                    if (monthlyPayment.paymentDate) {
+                        const paymentDate = new Date(monthlyPayment.paymentDate);
+                        if ((!startDate || paymentDate >= new Date(startDate)) &&
+                            (!endDate || paymentDate <= new Date(endDate))) {
+                            dateRangePaidAmounts.transportation += monthlyPayment.amount || 0;
+                        }
+                    }
+                });
+            } else {
+                // If no date filter, use all paid amounts
+                dateRangePaidAmounts = {
+                    inscriptionFee: payment.paidAmounts.inscriptionFee || 0,
+                    tuition: payment.paidAmounts.tuition || 0,
+                    uniform: payment.paidAmounts.uniform || 0,
+                    transportation: payment.paidAmounts.transportation || 0
+                };
+            }
+
             // Frais scolaires
             componentAnalysis.frais_scolaires.attendu += payment.totalAmounts.tuition;
-            componentAnalysis.frais_scolaires.collecte += payment.paidAmounts.tuition;
-            componentAnalysis.frais_scolaires.en_attente += payment.remainingAmounts.tuition;
+            componentAnalysis.frais_scolaires.collecte += dateRangePaidAmounts.tuition;
+            componentAnalysis.frais_scolaires.en_attente += (payment.totalAmounts.tuition - dateRangePaidAmounts.tuition);
 
             // Frais inscription
             componentAnalysis.frais_inscription.attendu += payment.totalAmounts.inscriptionFee;
-            componentAnalysis.frais_inscription.collecte += payment.paidAmounts.inscriptionFee;
-            componentAnalysis.frais_inscription.en_attente += payment.remainingAmounts.inscriptionFee;
+            componentAnalysis.frais_inscription.collecte += dateRangePaidAmounts.inscriptionFee;
+            componentAnalysis.frais_inscription.en_attente += (payment.totalAmounts.inscriptionFee - dateRangePaidAmounts.inscriptionFee);
 
             // Uniforme
             componentAnalysis.uniforme.attendu += payment.totalAmounts.uniform;
-            componentAnalysis.uniforme.collecte += payment.paidAmounts.uniform;
-            componentAnalysis.uniforme.en_attente += payment.remainingAmounts.uniform;
+            componentAnalysis.uniforme.collecte += dateRangePaidAmounts.uniform;
+            componentAnalysis.uniforme.en_attente += (payment.totalAmounts.uniform - dateRangePaidAmounts.uniform);
 
             // Transport
             componentAnalysis.transport.attendu += payment.totalAmounts.transportation;
-            componentAnalysis.transport.collecte += payment.paidAmounts.transportation;
-            componentAnalysis.transport.en_attente += payment.remainingAmounts.transportation;
+            componentAnalysis.transport.collecte += dateRangePaidAmounts.transportation;
+            componentAnalysis.transport.en_attente += (payment.totalAmounts.transportation - dateRangePaidAmounts.transportation);
         });
 
         // Calculate rates for component analysis
@@ -230,10 +297,82 @@ const getIncomeAnalytics = async (req, res) => {
                 };
             }
 
+            // Calculate date-range specific paid amounts for level analysis
+            let dateRangePaidAmounts = {
+                inscriptionFee: 0,
+                tuition: 0,
+                uniform: 0,
+                transportation: 0
+            };
+
+            if (startDate || endDate) {
+                // Check inscription fee payment
+                if (payment.inscriptionFee.paymentDate) {
+                    const paymentDate = new Date(payment.inscriptionFee.paymentDate);
+                    if ((!startDate || paymentDate >= new Date(startDate)) &&
+                        (!endDate || paymentDate <= new Date(endDate))) {
+                        dateRangePaidAmounts.inscriptionFee = payment.paidAmounts.inscriptionFee || 0;
+                    }
+                }
+
+                // Check uniform payment
+                if (payment.uniform.paymentDate) {
+                    const paymentDate = new Date(payment.uniform.paymentDate);
+                    if ((!startDate || paymentDate >= new Date(startDate)) &&
+                        (!endDate || paymentDate <= new Date(endDate))) {
+                        dateRangePaidAmounts.uniform = payment.paidAmounts.uniform || 0;
+                    }
+                }
+
+                // Check annual tuition payment
+                if (payment.annualTuitionPayment.paymentDate) {
+                    const paymentDate = new Date(payment.annualTuitionPayment.paymentDate);
+                    if ((!startDate || paymentDate >= new Date(startDate)) &&
+                        (!endDate || paymentDate <= new Date(endDate))) {
+                        dateRangePaidAmounts.tuition += payment.annualTuitionPayment.amount || 0;
+                    }
+                }
+
+                // Check monthly tuition payments
+                payment.tuitionMonthlyPayments.forEach(monthlyPayment => {
+                    if (monthlyPayment.paymentDate) {
+                        const paymentDate = new Date(monthlyPayment.paymentDate);
+                        if ((!startDate || paymentDate >= new Date(startDate)) &&
+                            (!endDate || paymentDate <= new Date(endDate))) {
+                            dateRangePaidAmounts.tuition += monthlyPayment.amount || 0;
+                        }
+                    }
+                });
+
+                // Check monthly transportation payments
+                payment.transportation.monthlyPayments.forEach(monthlyPayment => {
+                    if (monthlyPayment.paymentDate) {
+                        const paymentDate = new Date(monthlyPayment.paymentDate);
+                        if ((!startDate || paymentDate >= new Date(startDate)) &&
+                            (!endDate || paymentDate <= new Date(endDate))) {
+                            dateRangePaidAmounts.transportation += monthlyPayment.amount || 0;
+                        }
+                    }
+                });
+            } else {
+                // If no date filter, use all paid amounts
+                dateRangePaidAmounts = {
+                    inscriptionFee: payment.paidAmounts.inscriptionFee || 0,
+                    tuition: payment.paidAmounts.tuition || 0,
+                    uniform: payment.paidAmounts.uniform || 0,
+                    transportation: payment.paidAmounts.transportation || 0
+                };
+            }
+
+            const dateRangeTotalPaid = dateRangePaidAmounts.inscriptionFee +
+                                     dateRangePaidAmounts.tuition +
+                                     dateRangePaidAmounts.uniform +
+                                     dateRangePaidAmounts.transportation;
+
             levelAnalysis[level].nbr_etudiants += 1;
             levelAnalysis[level].attendu += payment.totalAmounts.grandTotal;
-            levelAnalysis[level].collecte += payment.paidAmounts.grandTotal;
-            levelAnalysis[level].en_attente += payment.remainingAmounts.grandTotal;
+            levelAnalysis[level].collecte += dateRangeTotalPaid;
+            levelAnalysis[level].en_attente += (payment.totalAmounts.grandTotal - dateRangeTotalPaid);
         });
 
         // Calculate rates for level analysis
@@ -395,11 +534,89 @@ const getIncomeAnalytics = async (req, res) => {
         studentAnalysis.sort((a, b) => a.nom.localeCompare(b.nom));
 
         // 4. Summary Statistics
+        let totalDateRangePaid = 0;
+
+        // Calculate total paid within date range
+        studentPayments.forEach(payment => {
+            let dateRangePaidAmounts = {
+                inscriptionFee: 0,
+                tuition: 0,
+                uniform: 0,
+                transportation: 0
+            };
+
+            if (startDate || endDate) {
+                // Check inscription fee payment
+                if (payment.inscriptionFee.paymentDate) {
+                    const paymentDate = new Date(payment.inscriptionFee.paymentDate);
+                    if ((!startDate || paymentDate >= new Date(startDate)) &&
+                        (!endDate || paymentDate <= new Date(endDate))) {
+                        dateRangePaidAmounts.inscriptionFee = payment.paidAmounts.inscriptionFee || 0;
+                    }
+                }
+
+                // Check uniform payment
+                if (payment.uniform.paymentDate) {
+                    const paymentDate = new Date(payment.uniform.paymentDate);
+                    if ((!startDate || paymentDate >= new Date(startDate)) &&
+                        (!endDate || paymentDate <= new Date(endDate))) {
+                        dateRangePaidAmounts.uniform = payment.paidAmounts.uniform || 0;
+                    }
+                }
+
+                // Check annual tuition payment
+                if (payment.annualTuitionPayment.paymentDate) {
+                    const paymentDate = new Date(payment.annualTuitionPayment.paymentDate);
+                    if ((!startDate || paymentDate >= new Date(startDate)) &&
+                        (!endDate || paymentDate <= new Date(endDate))) {
+                        dateRangePaidAmounts.tuition += payment.annualTuitionPayment.amount || 0;
+                    }
+                }
+
+                // Check monthly tuition payments
+                payment.tuitionMonthlyPayments.forEach(monthlyPayment => {
+                    if (monthlyPayment.paymentDate) {
+                        const paymentDate = new Date(monthlyPayment.paymentDate);
+                        if ((!startDate || paymentDate >= new Date(startDate)) &&
+                            (!endDate || paymentDate <= new Date(endDate))) {
+                            dateRangePaidAmounts.tuition += monthlyPayment.amount || 0;
+                        }
+                    }
+                });
+
+                // Check monthly transportation payments
+                payment.transportation.monthlyPayments.forEach(monthlyPayment => {
+                    if (monthlyPayment.paymentDate) {
+                        const paymentDate = new Date(monthlyPayment.paymentDate);
+                        if ((!startDate || paymentDate >= new Date(startDate)) &&
+                            (!endDate || paymentDate <= new Date(endDate))) {
+                            dateRangePaidAmounts.transportation += monthlyPayment.amount || 0;
+                        }
+                    }
+                });
+            } else {
+                // If no date filter, use all paid amounts
+                dateRangePaidAmounts = {
+                    inscriptionFee: payment.paidAmounts.inscriptionFee || 0,
+                    tuition: payment.paidAmounts.tuition || 0,
+                    uniform: payment.paidAmounts.uniform || 0,
+                    transportation: payment.paidAmounts.transportation || 0
+                };
+            }
+
+            totalDateRangePaid += dateRangePaidAmounts.inscriptionFee +
+                                dateRangePaidAmounts.tuition +
+                                dateRangePaidAmounts.uniform +
+                                dateRangePaidAmounts.transportation;
+        });
+
+        const totalAttendu = studentPayments.reduce((sum, payment) => sum + payment.totalAmounts.grandTotal, 0);
+
         const summary = {
             total_etudiants: studentPayments.length,
-            total_attendu: studentPayments.reduce((sum, payment) => sum + payment.totalAmounts.grandTotal, 0),
-            total_collecte: studentPayments.reduce((sum, payment) => sum + payment.paidAmounts.grandTotal, 0),
-            total_en_attente: studentPayments.reduce((sum, payment) => sum + payment.remainingAmounts.grandTotal, 0),
+            total_attendu: totalAttendu,
+            total_collecte: totalDateRangePaid,
+            total_en_attente: totalAttendu - totalDateRangePaid,
             taux_global: 0,
             total_remises: studentAnalysis.reduce((sum, student) => sum + student.remise, 0)
         };
@@ -417,10 +634,82 @@ const getIncomeAnalytics = async (req, res) => {
         studentPayments.forEach(payment => {
             const category = payment.gradeCategory;
             if (categoryBreakdown[category]) {
+                // Calculate date-range specific paid amounts for category breakdown
+                let dateRangePaidAmounts = {
+                    inscriptionFee: 0,
+                    tuition: 0,
+                    uniform: 0,
+                    transportation: 0
+                };
+
+                if (startDate || endDate) {
+                    // Check inscription fee payment
+                    if (payment.inscriptionFee.paymentDate) {
+                        const paymentDate = new Date(payment.inscriptionFee.paymentDate);
+                        if ((!startDate || paymentDate >= new Date(startDate)) &&
+                            (!endDate || paymentDate <= new Date(endDate))) {
+                            dateRangePaidAmounts.inscriptionFee = payment.paidAmounts.inscriptionFee || 0;
+                        }
+                    }
+
+                    // Check uniform payment
+                    if (payment.uniform.paymentDate) {
+                        const paymentDate = new Date(payment.uniform.paymentDate);
+                        if ((!startDate || paymentDate >= new Date(startDate)) &&
+                            (!endDate || paymentDate <= new Date(endDate))) {
+                            dateRangePaidAmounts.uniform = payment.paidAmounts.uniform || 0;
+                        }
+                    }
+
+                    // Check annual tuition payment
+                    if (payment.annualTuitionPayment.paymentDate) {
+                        const paymentDate = new Date(payment.annualTuitionPayment.paymentDate);
+                        if ((!startDate || paymentDate >= new Date(startDate)) &&
+                            (!endDate || paymentDate <= new Date(endDate))) {
+                            dateRangePaidAmounts.tuition += payment.annualTuitionPayment.amount || 0;
+                        }
+                    }
+
+                    // Check monthly tuition payments
+                    payment.tuitionMonthlyPayments.forEach(monthlyPayment => {
+                        if (monthlyPayment.paymentDate) {
+                            const paymentDate = new Date(monthlyPayment.paymentDate);
+                            if ((!startDate || paymentDate >= new Date(startDate)) &&
+                                (!endDate || paymentDate <= new Date(endDate))) {
+                                dateRangePaidAmounts.tuition += monthlyPayment.amount || 0;
+                            }
+                        }
+                    });
+
+                    // Check monthly transportation payments
+                    payment.transportation.monthlyPayments.forEach(monthlyPayment => {
+                        if (monthlyPayment.paymentDate) {
+                            const paymentDate = new Date(monthlyPayment.paymentDate);
+                            if ((!startDate || paymentDate >= new Date(startDate)) &&
+                                (!endDate || paymentDate <= new Date(endDate))) {
+                                dateRangePaidAmounts.transportation += monthlyPayment.amount || 0;
+                            }
+                        }
+                    });
+                } else {
+                    // If no date filter, use all paid amounts
+                    dateRangePaidAmounts = {
+                        inscriptionFee: payment.paidAmounts.inscriptionFee || 0,
+                        tuition: payment.paidAmounts.tuition || 0,
+                        uniform: payment.paidAmounts.uniform || 0,
+                        transportation: payment.paidAmounts.transportation || 0
+                    };
+                }
+
+                const dateRangeTotalPaid = dateRangePaidAmounts.inscriptionFee +
+                                         dateRangePaidAmounts.tuition +
+                                         dateRangePaidAmounts.uniform +
+                                         dateRangePaidAmounts.transportation;
+
                 categoryBreakdown[category].etudiants += 1;
                 categoryBreakdown[category].attendu += payment.totalAmounts.grandTotal;
-                categoryBreakdown[category].collecte += payment.paidAmounts.grandTotal;
-                categoryBreakdown[category].en_attente += payment.remainingAmounts.grandTotal;
+                categoryBreakdown[category].collecte += dateRangeTotalPaid;
+                categoryBreakdown[category].en_attente += (payment.totalAmounts.grandTotal - dateRangeTotalPaid);
             }
         });
 
