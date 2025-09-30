@@ -16,7 +16,8 @@ const {
   getScheduleStatistics,
   getClassSchedule,
   getAllClassesSchedules,
-  getTeacherSchedule
+  getTeacherSchedule,
+  generateSchedulePDF
 } = require('../controllers/scheduleController');
 
 const {
@@ -205,6 +206,9 @@ router.delete('/:scheduleId', isAdminOrHigher, deleteSchedule);
 
 // Teacher schedule routes
 router.get('/teacher/:teacherId', isTeacherOrHigher, getTeacherSchedule);
+
+// PDF generation route
+router.post('/generate-pdf', isAdminOrHigher, generateSchedulePDF);
 
 // Advanced schedule management
 router.post('/:scheduleId/clone', isAdminOrHigher, cloneScheduleToNewYear);

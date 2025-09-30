@@ -4,6 +4,7 @@ const Session = require('../models/Session');
 const User = require('../models/User');
 const Class = require('../models/Class');
 const Subject = require('../models/Subject');
+const PDFDocument = require('pdfkit');
 
 // Create a new schedule for a specific teacher (Admin/SuperAdmin only)
 const createSchedule = async (req, res) => {
@@ -880,6 +881,188 @@ const getScheduleStatistics = async (req, res) => {
   }
 };
 
+// Generate schedule PDF
+const generateSchedulePDF = async (req, res) => {
+  try {
+    const { teacher, academicYear, sessions, generatedAt, totalSessions } = req.body;
+
+    if (!teacher || !sessions || sessions.length === 0) {
+      return res.status(400).json({
+        message: 'Teacher information and sessions are required'
+      });
+    }
+
+    // Create PDF document with UTF-8 support
+    const doc = new PDFDocument({
+      margin: 40,
+      size: 'A4',
+      bufferPages: true
+    });
+
+    // Set response headers
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="emploi_du_temps_${teacher.name.replace(/\s+/g, '_')}_${academicYear}.pdf"`);
+
+    // Pipe the PDF to response
+    doc.pipe(res);
+
+    // PDF Header
+    doc.fontSize(18).fillColor('#1e40af').text('EMPLOI DU TEMPS', { align: 'center' });
+    doc.moveDown(0.5);
+
+    // Header info box
+    const headerY = doc.y;
+    doc.rect(40, headerY, 515, 80).stroke('#d1d5db');
+
+    doc.fontSize(12).fillColor('black')
+       .text(`Enseignant: ${teacher.name}`, 60, headerY + 15)
+       .text(`Année Académique: ${academicYear}`, 60, headerY + 35)
+       .text(`Total Sessions: ${totalSessions}`, 60, headerY + 55)
+       .text(`Généré le: ${new Date(generatedAt).toLocaleDateString('fr-FR')}`, 350, headerY + 15);
+
+    doc.y = headerY + 100;
+
+    // Group sessions by day of week
+    const sessionsByDay = sessions.reduce((acc, session) => {
+      if (!acc[session.dayOfWeek]) {
+        acc[session.dayOfWeek] = [];
+      }
+      acc[session.dayOfWeek].push(session);
+      return acc;
+    }, {});
+
+    // Sort days (Monday to Saturday)
+    const dayOrder = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+    const sortedDays = Object.keys(sessionsByDay).sort((a, b) => {
+      return dayOrder.indexOf(a) - dayOrder.indexOf(b);
+    });
+
+    // Table styling
+    const tableX = 40;
+    const tableWidth = 515;
+    const columnWidths = [80, 150, 120, 80, 85]; // Heure, Matière, Classe, Salle, Semaine
+    const rowHeight = 25;
+
+    // Draw schedule for each day
+    for (const day of sortedDays) {
+      const daySessions = sessionsByDay[day].sort((a, b) => {
+        // Sort by start time
+        const timeA = a.startTime.split(':').map(Number);
+        const timeB = b.startTime.split(':').map(Number);
+        return (timeA[0] * 60 + timeA[1]) - (timeB[0] * 60 + timeB[1]);
+      });
+
+      // Check for page break
+      const neededHeight = 40 + (daySessions.length + 1) * rowHeight;
+      if (doc.y + neededHeight > 750) {
+        doc.addPage();
+      }
+
+      // Day header
+      doc.fontSize(14).fillColor('#1e40af').text(day.toUpperCase(), tableX, doc.y);
+      doc.moveDown(0.5);
+
+      // Table header
+      const tableStartY = doc.y;
+      let currentX = tableX;
+
+      // Header background
+      doc.rect(tableX, tableStartY, tableWidth, rowHeight).fill('#f3f4f6').stroke('#d1d5db');
+
+      // Header text
+      doc.fillColor('black').fontSize(10);
+      const headers = ['Heure', 'Matière', 'Classe', 'Salle', 'Semaine'];
+      headers.forEach((header, index) => {
+        doc.text(header, currentX + 5, tableStartY + 8, {
+          width: columnWidths[index] - 10,
+          align: 'center'
+        });
+        currentX += columnWidths[index];
+      });
+
+      // Table rows
+      let currentY = tableStartY + rowHeight;
+
+      daySessions.forEach((session, index) => {
+        // Row background (alternating colors)
+        const bgColor = index % 2 === 0 ? '#ffffff' : '#f9fafb';
+        doc.rect(tableX, currentY, tableWidth, rowHeight).fill(bgColor).stroke('#d1d5db');
+
+        currentX = tableX;
+        doc.fillColor('black').fontSize(9);
+
+        // Time
+        doc.text(`${session.startTime} - ${session.endTime}`, currentX + 5, currentY + 8, {
+          width: columnWidths[0] - 10,
+          align: 'center'
+        });
+        currentX += columnWidths[0];
+
+        // Subject - Clean the text to remove corrupted characters
+        const cleanSubject = (session.subject || 'Matière Inconnue')
+          .toString()
+          .replace(/[^\x20-\x7E\u00C0-\u017F]/g, '')
+          .substring(0, 50); // Limit length for table display
+
+        doc.text(cleanSubject, currentX + 5, currentY + 5, {
+          width: columnWidths[1] - 10,
+          align: 'left',
+          height: rowHeight - 10
+        });
+        currentX += columnWidths[1];
+
+        // Class - Clean the text
+        const cleanClassName = (session.className || '').toString().replace(/[^\x20-\x7E\u00C0-\u017F]/g, '');
+        const cleanClassGrade = (session.classGrade || '').toString().replace(/[^\x20-\x7E\u00C0-\u017F]/g, '');
+
+        doc.text(`${cleanClassName} (${cleanClassGrade})`, currentX + 5, currentY + 5, {
+          width: columnWidths[2] - 10,
+          align: 'left',
+          height: rowHeight - 10
+        });
+        currentX += columnWidths[2];
+
+        // Room - Clean the text
+        const cleanRoom = (session.room || '-').toString().replace(/[^\x20-\x7E\u00C0-\u017F]/g, '') || '-';
+        doc.text(cleanRoom, currentX + 5, currentY + 8, {
+          width: columnWidths[3] - 10,
+          align: 'center'
+        });
+        currentX += columnWidths[3];
+
+        // Week type - Clean the text
+        const rawWeekType = session.weekType || 'Toutes';
+        const cleanWeekType = rawWeekType.toString().replace(/[^\x20-\x7E\u00C0-\u017F]/g, '');
+        const weekText = cleanWeekType !== 'Deux Semaines' ? cleanWeekType : 'Toutes';
+        doc.text(weekText || 'Toutes', currentX + 5, currentY + 8, {
+          width: columnWidths[4] - 10,
+          align: 'center'
+        });
+
+        currentY += rowHeight;
+      });
+
+      doc.y = currentY + 20;
+    }
+
+    // Footer
+    if (doc.y > 720) {
+      doc.addPage();
+    }
+
+    doc.fontSize(9).fillColor('#6b7280')
+       .text('Généré automatiquement par LearnLand', 40, 750, { align: 'center', width: 515 })
+       .text(`© ${new Date().getFullYear()} LearnLand. Tous droits réservés.`, 40, 765, { align: 'center', width: 515 });
+
+    // Finalize the PDF
+    doc.end();
+
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    res.status(500).json({ message: 'Error generating PDF', error: error.message });
+  }
+};
+
 module.exports = {
   createSchedule,
   getAllSchedules,
@@ -894,5 +1077,6 @@ module.exports = {
   getTeacherSchedule,
   cloneScheduleToNewYear,
   getScheduleStatistics,
-  getScheduleSessions
+  getScheduleSessions,
+  generateSchedulePDF
 };
