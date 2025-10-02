@@ -23,19 +23,7 @@ const scheduleSchema = new mongoose.Schema({
     required: true,
     default: 'both'
   },
-  
-  // Academic year
-  academicYear: {
-    type: String,
-    required: true,
-    validate: {
-      validator: function(v) {
-        return /^\d{4}$/.test(v);
-      },
-      message: 'Academic year must be a 4-digit year (e.g., 2024)'
-    }
-  },
-  
+
   // Optional description
   description: {
     type: String,
@@ -73,14 +61,13 @@ const scheduleSchema = new mongoose.Schema({
 });
 
 // Compound indexes for performance
-scheduleSchema.index({ school: 1, teacher: 1, academicYear: 1 });
-scheduleSchema.index({ teacher: 1, academicYear: 1, isActive: 1 });
-scheduleSchema.index({ academicYear: 1, isActive: 1 });
+scheduleSchema.index({ school: 1, teacher: 1 });
+scheduleSchema.index({ teacher: 1, isActive: 1 });
 
-// Ensure unique schedule per teacher per academic year
+// Ensure unique schedule per teacher per school (only one active schedule)
 scheduleSchema.index(
-  { teacher: 1, academicYear: 1, school: 1 },
-  { 
+  { teacher: 1, school: 1 },
+  {
     unique: true,
     partialFilterExpression: { isActive: true }
   }

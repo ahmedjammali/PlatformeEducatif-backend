@@ -5,45 +5,46 @@ const User = require('../models/User');
 const Class = require('../models/Class');
 const Subject = require('../models/Subject');
 const PDFDocument = require('pdfkit');
+const path = require('path');
+const fs = require('fs');
 
 // Create a new schedule for a specific teacher (Admin/SuperAdmin only)
 const createSchedule = async (req, res) => {
   try {
-    const { name, teacherId, weekType, academicYear, description } = req.body;
+    const { name, teacherId, weekType, description } = req.body;
     const creatorId = req.userId;
     const schoolId = req.schoolId;
 
     // Validate input
-    if (!name || !teacherId || !weekType || !academicYear) {
-      return res.status(400).json({ 
-        message: 'Name, teacher ID, week type, and academic year are required' 
+    if (!name || !teacherId || !weekType) {
+      return res.status(400).json({
+        message: 'Le nom, l\'identifiant de l\'enseignant et le type de semaine sont requis'
       });
     }
 
     // Verify teacher exists and belongs to the school
-    const teacher = await User.findOne({ 
-      _id: teacherId, 
-      role: 'teacher', 
-      school: schoolId 
+    const teacher = await User.findOne({
+      _id: teacherId,
+      role: 'teacher',
+      school: schoolId
     });
 
     if (!teacher) {
-      return res.status(404).json({ 
-        message: 'Teacher not found or does not belong to your school' 
+      return res.status(404).json({
+        message: 'Enseignant introuvable ou n\'appartient pas à votre établissement'
       });
     }
 
-    // Check if schedule already exists for this teacher in this academic year
+    // Check if schedule already exists for this teacher
     const existingSchedule = await Schedule.findOne({
       teacher: teacherId,
-      academicYear,
       school: schoolId,
       isActive: true
     });
 
     if (existingSchedule) {
-      return res.status(400).json({ 
-        message: 'An active schedule already exists for this teacher in this academic year' 
+      return res.status(400).json({
+        message: 'Un emploi du temps actif existe déjà pour cet enseignant'
       });
     }
 
@@ -51,7 +52,6 @@ const createSchedule = async (req, res) => {
       name,
       teacher: teacherId,
       weekType,
-      academicYear,
       description,
       school: schoolId,
       createdBy: creatorId
@@ -61,23 +61,22 @@ const createSchedule = async (req, res) => {
     await savedSchedule.populate('teacher', 'name email');
 
     res.status(201).json({
-      message: 'Schedule created successfully',
+      message: 'Emploi du temps créé avec succès',
       schedule: savedSchedule
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
 
 // Get all schedules with teacher information
 const getAllSchedules = async (req, res) => {
   try {
-    const { page = 1, limit = 50, academicYear, weekType, teacherId, status } = req.query;
+    const { page = 1, limit = 50, weekType, teacherId, status } = req.query;
     const schoolId = req.schoolId;
-    
+
     let filter = { school: schoolId };
-    
-    if (academicYear) filter.academicYear = academicYear;
+
     if (weekType) filter.weekType = weekType;
     if (teacherId) filter.teacher = teacherId;
     if (status) filter.status = status;
@@ -113,7 +112,7 @@ const getAllSchedules = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
 
@@ -128,7 +127,7 @@ const getScheduleById = async (req, res) => {
       .populate('createdBy', 'name email');
 
     if (!schedule) {
-      return res.status(404).json({ message: 'Schedule not found' });
+      return res.status(404).json({ message: 'Emploi du temps introuvable' });
     }
 
     // Build session filter
@@ -200,7 +199,7 @@ const getScheduleById = async (req, res) => {
       statistics: stats
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
 
@@ -223,15 +222,15 @@ const updateSchedule = async (req, res) => {
      .populate('createdBy', 'name email');
 
     if (!updatedSchedule) {
-      return res.status(404).json({ message: 'Schedule not found' });
+      return res.status(404).json({ message: 'Emploi du temps introuvable' });
     }
 
     res.status(200).json({
-      message: 'Schedule updated successfully',
+      message: 'Emploi du temps mis à jour avec succès',
       schedule: updatedSchedule
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
 
@@ -242,7 +241,7 @@ const deleteSchedule = async (req, res) => {
 
     const schedule = await Schedule.findById(scheduleId);
     if (!schedule) {
-      return res.status(404).json({ message: 'Schedule not found' });
+      return res.status(404).json({ message: 'Emploi du temps introuvable' });
     }
 
     // Delete all sessions associated with this schedule
@@ -252,11 +251,11 @@ const deleteSchedule = async (req, res) => {
     await Schedule.findByIdAndDelete(scheduleId);
 
     res.status(200).json({
-      message: 'Schedule and all associated sessions deleted successfully',
+      message: 'Emploi du temps et toutes les sessions associées supprimés avec succès',
       deletedSessionsCount: deletedSessions.deletedCount
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
 
@@ -282,8 +281,8 @@ const createSession = async (req, res) => {
 
     // Validate required fields
     if (!sessionDate || !startTime || !endTime || !className || !classGrade || !subjectId) {
-      return res.status(400).json({ 
-        message: 'Session date, start time, end time, class name, class grade, and subject are required' 
+      return res.status(400).json({
+        message: 'La date de session, l\'heure de début, l\'heure de fin, le nom de la classe, le niveau de la classe et la matière sont requis'
       });
     }
 
@@ -292,26 +291,26 @@ const createSession = async (req, res) => {
       .populate('teacher', 'name email');
 
     if (!schedule) {
-      return res.status(404).json({ message: 'Schedule not found' });
+      return res.status(404).json({ message: 'Emploi du temps introuvable' });
     }
 
     // Verify subject exists
     const subject = await Subject.findById(subjectId);
     if (!subject) {
-      return res.status(404).json({ message: 'Subject not found' });
+      return res.status(404).json({ message: 'Matière introuvable' });
     }
 
     // Validate session date
     const sessionDateObj = new Date(sessionDate);
     if (isNaN(sessionDateObj.getTime())) {
-      return res.status(400).json({ message: 'Invalid session date' });
+      return res.status(400).json({ message: 'Date de session invalide' });
     }
 
     // Validate time format
     const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
     if (!timeRegex.test(startTime) || !timeRegex.test(endTime)) {
-      return res.status(400).json({ 
-        message: 'Invalid time format. Use HH:MM format' 
+      return res.status(400).json({
+        message: 'Format d\'heure invalide. Utilisez le format HH:MM'
       });
     }
 
@@ -322,8 +321,8 @@ const createSession = async (req, res) => {
     const endMinutes = end[0] * 60 + end[1];
 
     if (endMinutes <= startMinutes) {
-      return res.status(400).json({ 
-        message: 'End time must be after start time' 
+      return res.status(400).json({
+        message: 'L\'heure de fin doit être après l\'heure de début'
       });
     }
 
@@ -348,12 +347,12 @@ const createSession = async (req, res) => {
     // Check for conflicts
     const conflicts = await session.hasTimeConflict();
     if (conflicts) {
-      return res.status(409).json({ 
-        message: 'Time conflict detected',
+      return res.status(409).json({
+        message: 'Conflit d\'horaire détecté',
         conflicts: conflicts.map(c => ({
-          teacher: c.teacher?.name || 'Unknown',
+          teacher: c.teacher?.name || 'Inconnu',
           className: c.className,
-          subject: c.subject?.name || 'Unknown',
+          subject: c.subject?.name || 'Inconnu',
           time: `${c.startTime} - ${c.endTime}`,
           date: c.sessionDate.toISOString().split('T')[0],
           weekType: c.weekType
@@ -369,11 +368,11 @@ const createSession = async (req, res) => {
       .populate('subject', 'name');
 
     res.status(201).json({
-      message: 'Session created successfully',
+      message: 'Session créée avec succès',
       session: populatedSession
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
 
@@ -381,11 +380,11 @@ const createSession = async (req, res) => {
 const getClassSchedule = async (req, res) => {
   try {
     const { className } = req.params;
-    const { startDate, endDate, weekType, academicYear } = req.query;
+    const { startDate, endDate, weekType } = req.query;
     const schoolId = req.schoolId;
 
     if (!className) {
-      return res.status(400).json({ message: 'Class name is required' });
+      return res.status(400).json({ message: 'Le nom de la classe est requis' });
     }
 
     // Build filter
@@ -402,16 +401,8 @@ const getClassSchedule = async (req, res) => {
         $gte: new Date(startDate),
         $lte: new Date(endDate)
       };
-    } else {
-      // Default to current week if no dates provided
-      const today = new Date();
-      const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
-      const endOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + 6));
-      sessionFilter.sessionDate = {
-        $gte: startOfWeek,
-        $lte: endOfWeek
-      };
     }
+    // If no date range provided, show all sessions (no date filter)
 
     // Add week type filter if provided
     if (weekType && weekType !== 'both') {
@@ -425,12 +416,12 @@ const getClassSchedule = async (req, res) => {
     const sessions = await Session.find(sessionFilter)
       .populate('teacher', 'name email')
       .populate('subject', 'name')
-      .populate('schedule', 'name academicYear')
+      .populate('schedule', 'name')
       .sort({ sessionDate: 1, startTime: 1 });
 
     if (sessions.length === 0) {
-      return res.status(404).json({ 
-        message: 'No sessions found for this class in the specified period' 
+      return res.status(404).json({
+        message: 'Aucune session trouvée pour cette classe dans la période spécifiée'
       });
     }
 
@@ -483,14 +474,14 @@ const getClassSchedule = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
 
 // Get all classes with their schedules - for admin overview
 const getAllClassesSchedules = async (req, res) => {
   try {
-    const { academicYear, weekType, date } = req.query;
+    const { weekType, date } = req.query;
     const schoolId = req.schoolId;
 
     // Build filter
@@ -563,10 +554,10 @@ const getAllClassesSchedules = async (req, res) => {
     res.status(200).json({
       classes: classesSessions,
       statistics: stats,
-      filters: { academicYear, weekType, date }
+      filters: { weekType, date }
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
 
@@ -574,35 +565,30 @@ const getAllClassesSchedules = async (req, res) => {
 const getTeacherSchedule = async (req, res) => {
   try {
     const { teacherId } = req.params;
-    const { startDate, endDate, academicYear } = req.query;
+    const { startDate, endDate } = req.query;
     const schoolId = req.schoolId;
 
     // Verify teacher exists
-    const teacher = await User.findOne({ 
-      _id: teacherId, 
-      role: 'teacher', 
-      school: schoolId 
+    const teacher = await User.findOne({
+      _id: teacherId,
+      role: 'teacher',
+      school: schoolId
     });
 
     if (!teacher) {
-      return res.status(404).json({ message: 'Teacher not found' });
+      return res.status(404).json({ message: 'Enseignant introuvable' });
     }
 
     // Get teacher's schedule
-    let scheduleFilter = {
+    const schedule = await Schedule.findOne({
       teacher: teacherId,
       school: schoolId,
       isActive: true
-    };
+    });
 
-    if (academicYear) {
-      scheduleFilter.academicYear = academicYear;
-    }
-
-    const schedule = await Schedule.findOne(scheduleFilter);
     if (!schedule) {
-      return res.status(404).json({ 
-        message: 'No active schedule found for this teacher' 
+      return res.status(404).json({
+        message: 'Aucun emploi du temps actif trouvé pour cet enseignant'
       });
     }
 
@@ -649,14 +635,13 @@ const getTeacherSchedule = async (req, res) => {
       schedule: {
         _id: schedule._id,
         name: schedule.name,
-        academicYear: schedule.academicYear,
         weekType: schedule.weekType
       },
       sessions: groupedSessions,
       statistics: stats
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
 
@@ -674,22 +659,22 @@ const updateSession = async (req, res) => {
 
     const session = await Session.findById(sessionId);
     if (!session) {
-      return res.status(404).json({ message: 'Session not found' });
+      return res.status(404).json({ message: 'Session introuvable' });
     }
 
     // If updating time, date, or class, check for conflicts
     if (updates.startTime || updates.endTime || updates.sessionDate || updates.className) {
       // Apply updates to check conflicts
       Object.assign(session, updates);
-      
+
       const conflicts = await session.hasTimeConflict(sessionId);
       if (conflicts) {
-        return res.status(409).json({ 
-          message: 'Time conflict detected',
+        return res.status(409).json({
+          message: 'Conflit d\'horaire détecté',
           conflicts: conflicts.map(c => ({
-            teacher: c.teacher?.name || 'Unknown',
+            teacher: c.teacher?.name || 'Inconnu',
             className: c.className,
-            subject: c.subject?.name || 'Unknown',
+            subject: c.subject?.name || 'Inconnu',
             time: `${c.startTime} - ${c.endTime}`,
             date: c.sessionDate.toISOString().split('T')[0],
             weekType: c.weekType
@@ -707,15 +692,15 @@ const updateSession = async (req, res) => {
     .populate('subject', 'name');
 
     if (!updatedSession) {
-      return res.status(404).json({ message: 'Session not found' });
+      return res.status(404).json({ message: 'Session introuvable' });
     }
 
     res.status(200).json({
-      message: 'Session updated successfully',
+      message: 'Session mise à jour avec succès',
       session: updatedSession
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
 
@@ -726,15 +711,15 @@ const deleteSession = async (req, res) => {
 
     const deletedSession = await Session.findByIdAndDelete(sessionId);
     if (!deletedSession) {
-      return res.status(404).json({ message: 'Session not found' });
+      return res.status(404).json({ message: 'Session introuvable' });
     }
 
-    res.status(200).json({ 
-      message: 'Session deleted successfully',
+    res.status(200).json({
+      message: 'Session supprimée avec succès',
       session: deletedSession
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
 
@@ -763,67 +748,18 @@ const getScheduleSessions = async (req, res) => {
 
     res.status(200).json({ sessions });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
 
-// Clone schedule to new academic year
+// Clone schedule (deprecated - kept for backward compatibility)
 const cloneScheduleToNewYear = async (req, res) => {
   try {
-    const { scheduleId } = req.params;
-    const { newAcademicYear, newName } = req.body;
-    const creatorId = req.userId;
-    const schoolId = req.schoolId;
-
-    if (!newAcademicYear) {
-      return res.status(400).json({ 
-        message: 'New academic year is required' 
-      });
-    }
-
-    // Get the original schedule
-    const originalSchedule = await Schedule.findById(scheduleId)
-      .populate('teacher', 'name');
-    
-    if (!originalSchedule) {
-      return res.status(404).json({ message: 'Original schedule not found' });
-    }
-
-    // Check if schedule already exists for this teacher in new academic year
-    const existingSchedule = await Schedule.findOne({
-      teacher: originalSchedule.teacher._id,
-      academicYear: newAcademicYear,
-      school: schoolId,
-      isActive: true
-    });
-
-    if (existingSchedule) {
-      return res.status(400).json({ 
-        message: 'Schedule already exists for this teacher in the target academic year' 
-      });
-    }
-
-    // Create new schedule
-    const scheduleName = newName || `${originalSchedule.name} - ${newAcademicYear}`;
-    const newSchedule = new Schedule({
-      name: scheduleName,
-      teacher: originalSchedule.teacher._id,
-      weekType: originalSchedule.weekType,
-      academicYear: newAcademicYear,
-      description: originalSchedule.description,
-      school: schoolId,
-      createdBy: creatorId
-    });
-
-    const savedSchedule = await newSchedule.save();
-
-    res.status(201).json({
-      message: 'Schedule template created successfully. You can now add sessions for the new academic year.',
-      schedule: savedSchedule,
-      originalTeacher: originalSchedule.teacher.name
+    return res.status(400).json({
+      message: 'Le clonage d\'emploi du temps n\'est plus supporté. Chaque enseignant ne peut avoir qu\'un seul emploi du temps.'
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
 
@@ -834,9 +770,9 @@ const getScheduleStatistics = async (req, res) => {
 
     const schedule = await Schedule.findById(scheduleId)
       .populate('teacher', 'name email');
-    
+
     if (!schedule) {
-      return res.status(404).json({ message: 'Schedule not found' });
+      return res.status(404).json({ message: 'Emploi du temps introuvable' });
     }
 
     const stats = await schedule.getStatistics();
@@ -871,24 +807,23 @@ const getScheduleStatistics = async (req, res) => {
         _id: schedule._id,
         name: schedule.name,
         teacher: schedule.teacher,
-        academicYear: schedule.academicYear,
         weekType: schedule.weekType
       },
       statistics: detailedStats
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
 
 // Generate schedule PDF
 const generateSchedulePDF = async (req, res) => {
   try {
-    const { teacher, academicYear, sessions, generatedAt, totalSessions } = req.body;
+    const { teacher, sessions, generatedAt, totalSessions } = req.body;
 
     if (!teacher || !sessions || sessions.length === 0) {
       return res.status(400).json({
-        message: 'Teacher information and sessions are required'
+        message: 'Les informations de l\'enseignant et les sessions sont requises'
       });
     }
 
@@ -899,9 +834,21 @@ const generateSchedulePDF = async (req, res) => {
       bufferPages: true
     });
 
+    // Register Arabic font
+    const arabicFontPath = path.join(__dirname, '..', 'fonts', 'NotoSansArabic-Regular.ttf');
+
+    // Check if Arabic font exists
+    if (fs.existsSync(arabicFontPath)) {
+      doc.registerFont('ArabicFont', arabicFontPath);
+      doc.font('ArabicFont'); // Set as default font for the document
+    } else {
+      console.warn('Arabic font not found, using default font');
+      doc.font('Helvetica');
+    }
+
     // Set response headers
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="emploi_du_temps_${teacher.name.replace(/\s+/g, '_')}_${academicYear}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="emploi_du_temps_${teacher.name.replace(/\s+/g, '_')}.pdf"`);
 
     // Pipe the PDF to response
     doc.pipe(res);
@@ -912,15 +859,14 @@ const generateSchedulePDF = async (req, res) => {
 
     // Header info box
     const headerY = doc.y;
-    doc.rect(40, headerY, 515, 80).stroke('#d1d5db');
+    doc.rect(40, headerY, 515, 70).stroke('#d1d5db');
 
     doc.fontSize(12).fillColor('black')
        .text(`Enseignant: ${teacher.name}`, 60, headerY + 15)
-       .text(`Année Académique: ${academicYear}`, 60, headerY + 35)
-       .text(`Total Sessions: ${totalSessions}`, 60, headerY + 55)
+       .text(`Total Sessions: ${totalSessions}`, 60, headerY + 40)
        .text(`Généré le: ${new Date(generatedAt).toLocaleDateString('fr-FR')}`, 350, headerY + 15);
 
-    doc.y = headerY + 100;
+    doc.y = headerY + 90;
 
     // Group sessions by day of week
     const sessionsByDay = sessions.reduce((acc, session) => {
@@ -998,42 +944,40 @@ const generateSchedulePDF = async (req, res) => {
         });
         currentX += columnWidths[0];
 
-        // Subject - Clean the text to remove corrupted characters
-        const cleanSubject = (session.subject || 'Matière Inconnue')
+        // Subject - Keep Arabic characters intact
+        const subjectText = (session.subject || 'Matière Inconnue')
           .toString()
-          .replace(/[^\x20-\x7E\u00C0-\u017F]/g, '')
           .substring(0, 50); // Limit length for table display
 
-        doc.text(cleanSubject, currentX + 5, currentY + 5, {
+        doc.text(subjectText, currentX + 5, currentY + 5, {
           width: columnWidths[1] - 10,
           align: 'left',
           height: rowHeight - 10
         });
         currentX += columnWidths[1];
 
-        // Class - Clean the text
-        const cleanClassName = (session.className || '').toString().replace(/[^\x20-\x7E\u00C0-\u017F]/g, '');
-        const cleanClassGrade = (session.classGrade || '').toString().replace(/[^\x20-\x7E\u00C0-\u017F]/g, '');
+        // Class - Keep Arabic characters intact
+        const className = (session.className || '').toString();
+        const classGrade = (session.classGrade || '').toString();
 
-        doc.text(`${cleanClassName} (${cleanClassGrade})`, currentX + 5, currentY + 5, {
+        doc.text(`${className} (${classGrade})`, currentX + 5, currentY + 5, {
           width: columnWidths[2] - 10,
           align: 'left',
           height: rowHeight - 10
         });
         currentX += columnWidths[2];
 
-        // Room - Clean the text
-        const cleanRoom = (session.room || '-').toString().replace(/[^\x20-\x7E\u00C0-\u017F]/g, '') || '-';
-        doc.text(cleanRoom, currentX + 5, currentY + 8, {
+        // Room - Keep Arabic characters intact
+        const roomText = (session.room || '-').toString() || '-';
+        doc.text(roomText, currentX + 5, currentY + 8, {
           width: columnWidths[3] - 10,
           align: 'center'
         });
         currentX += columnWidths[3];
 
-        // Week type - Clean the text
-        const rawWeekType = session.weekType || 'Toutes';
-        const cleanWeekType = rawWeekType.toString().replace(/[^\x20-\x7E\u00C0-\u017F]/g, '');
-        const weekText = cleanWeekType !== 'Deux Semaines' ? cleanWeekType : 'Toutes';
+        // Week type - Keep text intact
+        const weekType = session.weekType || 'Toutes';
+        const weekText = weekType !== 'Deux Semaines' ? weekType : 'Toutes';
         doc.text(weekText || 'Toutes', currentX + 5, currentY + 8, {
           width: columnWidths[4] - 10,
           align: 'center'
@@ -1059,7 +1003,7 @@ const generateSchedulePDF = async (req, res) => {
 
   } catch (error) {
     console.error('Error generating PDF:', error);
-    res.status(500).json({ message: 'Error generating PDF', error: error.message });
+    res.status(500).json({ message: 'Erreur lors de la génération du PDF', error: error.message });
   }
 };
 
