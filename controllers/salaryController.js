@@ -586,7 +586,6 @@ const deleteSalaryConfiguration = async (req, res) => {
     });
   }
 };
-
 // Update payment hours (both regular and extra hours) for a specific month
 const updatePaymentHours = async (req, res) => {
   try {
@@ -619,48 +618,75 @@ const updatePaymentHours = async (req, res) => {
     const payment = salaryRecord.paymentSchedule[paymentIndex];
     const config = salaryRecord.salaryConfiguration;
 
-    // Update hours
+    // Update hours worked if provided
     if (actualHoursWorked !== undefined) {
       payment.actualHoursWorked = Math.max(0, actualHoursWorked || 0);
     }
 
-    if (extraHours !== undefined) {
-      if (!config.allowExtraHours) {
-        return res.status(400).json({
-          message: "Extra hours are not allowed for this configuration",
-        });
-      }
+    // Update extra hours if provided (only if allowExtraHours is enabled)
+    if (extraHours !== undefined && config.allowExtraHours) {
       payment.extraHours = Math.max(0, extraHours || 0);
     }
 
     // Recalculate amounts based on payment type
     if (config.paymentType === "hourly") {
-      const regularHours = Math.max(0, payment.regularHours || 0);
-      const hoursWorked = Math.max(0, payment.actualHoursWorked || 0);
+      const regularHours = Math.max(0, payment.regularHours || 40);
+      const hoursWorked = Math.max(0, payment.actualHoursWorked || regularHours);
       const hourlyRate = Math.max(0, config.hourlyRate || 0);
-      const extraHourlyRate = Math.max(0, config.extraHourlyRate || hourlyRate);
+      
+      // ALL hours worked are paid at the SAME rate (regular hourly rate)
+      // No automatic overtime premium unless explicitly configured
+      payment.regularAmount = hoursWorked * hourlyRate;
 
-      // Calculate regular and overtime amounts
-      if (hoursWorked <= regularHours) {
-        // Only regular hours
-        payment.regularAmount = hoursWorked * hourlyRate;
+      // Store the hourly rate used
+      payment.hourlyRate = hourlyRate;
+
+      // Calculate separate extra hours amount (independent bonus hours - only if feature enabled)
+      let separateExtraPayment = 0;
+      if (config.allowExtraHours && config.extraHourlyRate) {
+        const separateExtraHours = Math.max(0, payment.extraHours || 0);
+        separateExtraPayment = separateExtraHours * config.extraHourlyRate;
+        payment.extraHourlyRate = config.extraHourlyRate;
       } else {
-        // Regular hours + overtime
-        payment.regularAmount = regularHours * hourlyRate;
-        const overtimeHours = hoursWorked - regularHours;
-        payment.regularAmount += overtimeHours * extraHourlyRate;
+        payment.extraHourlyRate = 0;
       }
+      payment.extraAmount = separateExtraPayment;
 
-      // Calculate extra hours amount (independent of regular/overtime)
-      payment.extraAmount = (payment.extraHours || 0) * extraHourlyRate;
-
-      // Total amount
+      // Total amount = all hours worked + separate extra hours
       payment.totalAmount = payment.regularAmount + payment.extraAmount;
+
+      console.log('Hours calculation:', {
+        regularHours,
+        hoursWorked,
+        hourlyRate,
+        regularAmount: payment.regularAmount.toFixed(2),
+        extraHours: payment.extraHours || 0,
+        extraHourlyRate: payment.extraHourlyRate,
+        extraAmount: payment.extraAmount.toFixed(2),
+        totalAmount: payment.totalAmount.toFixed(2)
+      });
+
     } else if (config.paymentType === "monthly") {
-      // For monthly payments, recalculate total when extra hours change
-      const extraHourlyRate = Math.max(0, config.extraHourlyRate || 0);
-      payment.extraAmount = (payment.extraHours || 0) * extraHourlyRate;
-      payment.totalAmount = (payment.baseSalaryAmount || 0) + payment.extraAmount;
+      // For monthly payments, only extra hours affect the total
+      const baseSalary = Math.max(0, payment.baseSalaryAmount || config.baseSalary || 0);
+      
+      if (config.allowExtraHours && config.extraHourlyRate) {
+        const separateExtraHours = Math.max(0, payment.extraHours || 0);
+        payment.extraAmount = separateExtraHours * config.extraHourlyRate;
+      } else {
+        payment.extraAmount = 0;
+      }
+      
+      payment.totalAmount = baseSalary + payment.extraAmount;
+    }
+
+    // Update payment status if it was paid
+    if (payment.paidAmount > 0) {
+      if (payment.paidAmount >= payment.totalAmount) {
+        payment.paymentStatus = "paid";
+      } else {
+        payment.paymentStatus = "partial";
+      }
     }
 
     salaryRecord.updatedBy = req.user.id;
@@ -669,6 +695,14 @@ const updatePaymentHours = async (req, res) => {
     res.json({
       message: "Payment hours updated successfully",
       payment: payment,
+      calculation: {
+        actualHoursWorked: payment.actualHoursWorked,
+        extraHours: payment.extraHours || 0,
+        hourlyRate: payment.hourlyRate,
+        regularAmount: payment.regularAmount,
+        extraAmount: payment.extraAmount,
+        totalAmount: payment.totalAmount
+      }
     });
   } catch (error) {
     console.error("Error updating payment hours:", error);
@@ -678,7 +712,6 @@ const updatePaymentHours = async (req, res) => {
     });
   }
 };
-
 module.exports = {
   createSalaryConfiguration,
   getTeachersAndAdmins,

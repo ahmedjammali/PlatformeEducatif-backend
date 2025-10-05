@@ -28,7 +28,6 @@ exports.getOutcomeAnalytics = async (req, res) => {
         }
         console.log("school:", schoolId);
 
-
         // Apply date filters for charges
         if (startDate || endDate) {
             chargeFilters.date = {};
@@ -58,33 +57,64 @@ exports.getOutcomeAnalytics = async (req, res) => {
             .populate('createdBy', 'name')
             .sort({ date: -1 });
 
-        // Get salary data with detailed population
-        const salaries = await TeacherAdminSalary.find(salaryFilters)
+        // Get salary data
+        let salaries = await TeacherAdminSalary.find(salaryFilters)
             .populate('user', 'name email role')
             .populate('school', 'name')
             .populate('salaryConfiguration')
             .sort({ academicYear: -1 });
 
+        // Filter payment schedules within date range if dates are provided
+        if (startDate || endDate) {
+            const start = startDate ? new Date(startDate) : null;
+            const end = endDate ? new Date(endDate) : null;
+
+            salaries = salaries.map(salary => {
+                const filteredSchedule = salary.paymentSchedule.filter(payment => {
+                    // Only include payments that have been paid and within the date range
+                    if (!payment.paidDate) return false;
+                    
+                    const paidDate = new Date(payment.paidDate);
+                    if (start && paidDate < start) return false;
+                    if (end && paidDate > end) return false;
+                    
+                    return true;
+                });
+                
+                // Create a new object with filtered schedule
+                const salaryObj = salary.toObject();
+                salaryObj.paymentSchedule = filteredSchedule;
+                return salaryObj;
+            }).filter(salary => salary.paymentSchedule.length > 0); // Only include salaries with payments in range
+        }
+
         // Analyze charges by category
         const chargeAnalysis = await analyzeChargesByCategory(chargeFilters);
 
-        // Analyze salaries by role and payment type
-        const salaryAnalysis = await analyzeSalariesByRole(salaryFilters);
+        // Analyze salaries by role and payment type with date filters
+        const salaryAnalysis = await analyzeSalariesByRole(salaryFilters, startDate, endDate);
 
-        // Analyze monthly trends
-        const monthlyTrends = await analyzeMonthlyTrends(chargeFilters, salaryFilters);
+        // Analyze monthly trends with date filters
+        const monthlyTrends = await analyzeMonthlyTrends(chargeFilters, salaryFilters, startDate, endDate);
 
-        // Calculate summary statistics
+        // Calculate summary statistics from filtered data
         const totalCharges = charges.reduce((sum, charge) => sum + charge.montant, 0);
+        
         const totalSalaries = salaries.reduce((sum, salary) => {
             return sum + salary.paymentSchedule.reduce((scheduleSum, payment) => {
-                return scheduleSum + (payment.paymentStatus === 'paid' || payment.paymentStatus === 'partial' ? payment.paidAmount : 0);
+                if (payment.paymentStatus === 'paid' || payment.paymentStatus === 'partial') {
+                    return scheduleSum + (payment.paidAmount || 0);
+                }
+                return scheduleSum;
             }, 0);
         }, 0);
 
         const pendingSalaries = salaries.reduce((sum, salary) => {
             return sum + salary.paymentSchedule.reduce((scheduleSum, payment) => {
-                return scheduleSum + (payment.paymentStatus !== 'paid' ? (payment.totalAmount - (payment.paidAmount || 0)) : 0);
+                if (payment.paymentStatus !== 'paid') {
+                    return scheduleSum + (payment.totalAmount - (payment.paidAmount || 0));
+                }
+                return scheduleSum;
             }, 0);
         }, 0);
 
@@ -161,9 +191,21 @@ async function analyzeChargesByCategory(filters) {
 /**
  * Analyze salaries by role and payment type
  */
-async function analyzeSalariesByRole(filters) {
+async function analyzeSalariesByRole(filters, startDate, endDate) {
     const pipeline = [
         { $match: filters },
+        { $unwind: '$paymentSchedule' },
+        
+        // Add date filter stage for payment dates
+        ...(startDate || endDate ? [{
+            $match: {
+                'paymentSchedule.paidDate': {
+                    ...(startDate && { $gte: new Date(startDate) }),
+                    ...(endDate && { $lte: new Date(endDate) })
+                }
+            }
+        }] : []),
+        
         {
             $lookup: {
                 from: 'users',
@@ -182,7 +224,6 @@ async function analyzeSalariesByRole(filters) {
             }
         },
         { $unwind: '$configInfo' },
-        { $unwind: '$paymentSchedule' },
         {
             $group: {
                 _id: {
@@ -228,7 +269,13 @@ async function analyzeSalariesByRole(filters) {
                 paid_count: 1,
                 payment_rate: {
                     $round: [
-                        { $multiply: [{ $divide: ['$paid_count', '$payment_count'] }, 100] },
+                        {
+                            $cond: [
+                                { $eq: ['$payment_count', 0] },
+                                0,
+                                { $multiply: [{ $divide: ['$paid_count', '$payment_count'] }, 100] }
+                            ]
+                        },
                         2
                     ]
                 },
@@ -244,7 +291,7 @@ async function analyzeSalariesByRole(filters) {
 /**
  * Analyze monthly trends for both charges and salaries
  */
-async function analyzeMonthlyTrends(chargeFilters, salaryFilters) {
+async function analyzeMonthlyTrends(chargeFilters, salaryFilters, startDate, endDate) {
     // Charges monthly analysis
     const chargesPipeline = [
         { $match: chargeFilters },
@@ -270,15 +317,26 @@ async function analyzeMonthlyTrends(chargeFilters, salaryFilters) {
         { $sort: { year: 1, month: 1 } }
     ];
 
-    // Salaries monthly analysis
+    // Salaries monthly analysis - filter by paidDate
     const salariesPipeline = [
         { $match: salaryFilters },
         { $unwind: '$paymentSchedule' },
+        
+        // Add date filter for paid dates
+        ...(startDate || endDate ? [{
+            $match: {
+                'paymentSchedule.paidDate': {
+                    ...(startDate && { $gte: new Date(startDate) }),
+                    ...(endDate && { $lte: new Date(endDate) })
+                }
+            }
+        }] : []),
+        
         {
             $group: {
                 _id: {
-                    year: { $year: '$paymentSchedule.dueDate' },
-                    month: { $month: '$paymentSchedule.dueDate' }
+                    year: { $year: '$paymentSchedule.paidDate' },
+                    month: { $month: '$paymentSchedule.paidDate' }
                 },
                 total_salaries: { $sum: '$paymentSchedule.totalAmount' },
                 paid_salaries: {
@@ -371,4 +429,3 @@ exports.getOutcomeFilterOptions = async (req, res) => {
         });
     }
 };
-
