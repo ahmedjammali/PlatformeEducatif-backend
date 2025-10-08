@@ -26,8 +26,8 @@ const login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // Check password - for admin/superadmin roles
-    if (['admin', 'superadmin'].includes(user.role)) {
+    // Check password - for admin/superadmin/caissier roles
+    if (['admin', 'superadmin', 'caissier'].includes(user.role)) {
       if (!password) {
         return res.status(401).json({ message: 'Password is required for admin accounts' });
       }
@@ -84,7 +84,7 @@ const login = async (req, res) => {
   }
 };
 
-// Create User (Admin creates teachers/students, SuperAdmin creates any role)
+// Create User (Admin/Caissier creates teachers/students, SuperAdmin creates any role)
 const createUser = async (req, res) => {
   try {
     const { 
@@ -101,9 +101,9 @@ const createUser = async (req, res) => {
     const creatorRole = req.userRole;
 
     // Validation: Check role hierarchy
-    if (creatorRole === 'admin' && !['teacher', 'student'].includes(role)) {
+    if (['admin', 'caissier'].includes(creatorRole) && !['teacher', 'student'].includes(role)) {
       return res.status(403).json({ 
-        message: 'Admin can only create teacher and student accounts' 
+        message: 'Admin and Caissier can only create teacher and student accounts' 
       });
     }
 
@@ -125,7 +125,7 @@ const createUser = async (req, res) => {
     }
 
     // Password validation for admin roles
-    if (['admin', 'superadmin'].includes(role) && !password) {
+    if (['admin', 'superadmin', 'caissier'].includes(role) && !password) {
       return res.status(400).json({ 
         message: 'Password is required for admin accounts' 
       });
@@ -139,7 +139,7 @@ const createUser = async (req, res) => {
       });
     }
 
-    // Get school (if needed) - for superadmin/admin logic
+    // Get school (if needed) - for superadmin/admin/caissier logic
     let schoolId = req.schoolId;
 
     // Create user object with role-specific fields
@@ -206,8 +206,8 @@ const getAllUsers = async (req, res) => {
       // SuperAdmin → sees all roles in their school
       if (role) filter.role = role;
 
-    } else if (userRole === 'admin') {
-      // Admin → sees only teacher & student (not other admins/superadmins)
+    } else if (['admin', 'caissier'].includes(userRole)) {
+      // Admin/Caissier → sees only teacher & student (not other admins/superadmins/caissiers)
       filter.role = role ? role : { $in: ['teacher', 'student'] };
 
     } else if (userRole === 'teacher') {
@@ -338,12 +338,15 @@ const deleteUser = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // SuperAdmin can delete admins, but prevent deleting the only admin unless there's another admin
-    if (user.role === 'admin' && userRole === 'superadmin') {
-      const adminCount = await User.countDocuments({ role: 'admin' });
+    // SuperAdmin can delete admins/caissiers, but prevent deleting the only admin unless there's another admin
+    if (['admin', 'caissier'].includes(user.role) && userRole === 'superadmin') {
+      const adminCount = await User.countDocuments({ 
+        role: { $in: ['admin', 'caissier'] },
+        school: user.school
+      });
       if (adminCount === 1) {
         return res.status(400).json({ 
-          message: 'Cannot delete the only admin account' 
+          message: 'Cannot delete the only admin/caissier account' 
         });
       }
     }
@@ -385,7 +388,7 @@ const deleteUser = async (req, res) => {
       // Delete all student progress records for this student
       const deletedProgress = await StudentProgress.deleteMany({ student: id });
       
-      // ✅ NEW: Delete all payment records for this student
+      // Delete all payment records for this student
       const deletedPayments = await StudentPayment.deleteMany({ student: id });
       
       console.log(`Deleted ${deletedGrades.deletedCount} grades, ${deletedProgress.deletedCount} progress records, and ${deletedPayments.deletedCount} payment records for student ${user.name}`);
@@ -410,6 +413,7 @@ const deleteUser = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+
 // Change password
 const changePassword = async (req, res) => {
   try {

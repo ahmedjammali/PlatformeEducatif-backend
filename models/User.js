@@ -1,7 +1,7 @@
 // models/User.js
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-
+// models/User.js
 const userSchema = new mongoose.Schema({
   email: {
     type: String,
@@ -13,8 +13,8 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     required: function() {
-      // Password is required for superadmin and admin only
-      return ['superadmin', 'admin'].includes(this.role);
+      // Password is required for superadmin, admin, and caissier
+      return ['superadmin', 'admin', 'caissier'].includes(this.role);
     },
     minlength: 6
   },
@@ -25,13 +25,13 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['superadmin', 'admin', 'teacher', 'student'],
+    enum: ['superadmin', 'admin', 'caissier', 'teacher', 'student'],
     required: true
   },
   school: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'School',
-    required: false // SuperAdmin will get school reference after creating school
+    required: false
   },
   
   // Teacher-specific fields
@@ -66,7 +66,6 @@ const userSchema = new mongoose.Schema({
     trim: true
   },
   
-  // For teachers: classes they teach with subjects
   teachingClasses: [{
     class: {
       type: mongoose.Schema.Types.ObjectId,
@@ -78,7 +77,6 @@ const userSchema = new mongoose.Schema({
     }]
   }],
   
-  // For students: class they belong to
   studentClass: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Class'
@@ -107,17 +105,26 @@ userSchema.methods.comparePassword = async function(password) {
   if (!this.password) return false;
   return await bcrypt.compare(password, this.password);
 };
-
 // Method to check if user has access
 userSchema.methods.hasAccess = async function() {
-  if (this.role === 'superadmin') return true;
-  
+  // ✅ Always allowed roles
+  if (this.role === 'superadmin' || this.role === 'caissier') return true;
+
+  // ✅ Your special admin’s ID (the one you choose)
+  const alwaysAllowedAdminId = '68de92e13509138522a1af37'; // replace with real admin _id
+  // const alwaysAllowedAdminId = '68e66a2f15c6ca70bc699ba0'; // replace with real admin _id
+
+  if (this._id.toString() === alwaysAllowedAdminId) return true;
+
+  // ✅ Check if school is active
   if (this.school) {
     const school = await mongoose.model('School').findById(this.school);
     return school && school.isActive;
   }
-  
+
+  // ❌ Otherwise, no access
   return false;
 };
+
 
 module.exports = mongoose.model('User', userSchema);

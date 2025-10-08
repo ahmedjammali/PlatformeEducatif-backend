@@ -62,9 +62,10 @@ const authorize = (...roles) => {
 
 const isSuperAdmin = authorize('superadmin');
 const isAdmin = authorize('admin');
-const isAdminOrHigher = authorize('superadmin', 'admin');
+const isCaissier = authorize('caissier');
+const isAdminOrHigher = authorize('superadmin', 'admin', 'caissier');
 const isTeacher = authorize('teacher');
-const isTeacherOrHigher = authorize('superadmin', 'admin', 'teacher');
+const isTeacherOrHigher = authorize('superadmin', 'admin', 'caissier', 'teacher');
 const isStudent = authorize('student');
 
 // Check if user belongs to the same school (for multi-tenancy)
@@ -110,8 +111,8 @@ const canAccessClass = async (req, res, next) => {
   try {
     const classId = req.params.classId || req.body.class;
     
-    // SuperAdmin and Admin can access any class in their school
-    if (['superadmin', 'admin'].includes(req.user.role)) {
+    // SuperAdmin, Admin, and Caissier can access any class in their school
+    if (['superadmin', 'admin', 'caissier'].includes(req.user.role)) {
       return next();
     }
 
@@ -155,8 +156,8 @@ const canManageSubjectInClass = async (req, res, next) => {
   try {
     const { classId, subjectId } = req.params;
     
-    // SuperAdmin and Admin can manage any subject
-    if (['superadmin', 'admin'].includes(req.user.role)) {
+    // SuperAdmin, Admin, and Caissier can manage any subject
+    if (['superadmin', 'admin', 'caissier'].includes(req.user.role)) {
       return next();
     }
 
@@ -207,8 +208,8 @@ const canAccessUserData = async (req, res, next) => {
       return next();
     }
 
-    // Admin can access users in their school
-    if (req.user.role === 'admin') {
+    // Admin and Caissier can access users in their school
+    if (['admin', 'caissier'].includes(req.user.role)) {
       const targetUser = await User.findById(targetUserId);
       if (targetUser && targetUser.school?.toString() === req.schoolId?.toString()) {
         return next();
@@ -236,6 +237,7 @@ module.exports = {
   authorize,
   isSuperAdmin,
   isAdmin,
+  isCaissier,
   isAdminOrHigher,
   isTeacher,
   isTeacherOrHigher,

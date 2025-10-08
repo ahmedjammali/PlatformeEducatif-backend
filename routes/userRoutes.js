@@ -21,22 +21,20 @@ const {
 
 // Validation middleware
 const validateUserCreation = (req, res, next) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, role } = req.body;
   
-  if (!name || !email  || !role) {
+  if (!name || !email || !role) {
     return res.status(400).json({ 
-      message: 'Name, email, password, and role are required' 
+      message: 'Name, email, and role are required' 
     });
   }
 
-  const validRoles = ['superadmin', 'admin', 'teacher', 'student'];
+  const validRoles = ['superadmin', 'admin', 'caissier', 'teacher', 'student'];
   if (!validRoles.includes(role)) {
     return res.status(400).json({   
       message: 'Invalid role. Must be one of: ' + validRoles.join(', ') 
     });
   }
-
-
 
   next();
 };
