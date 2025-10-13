@@ -71,7 +71,7 @@ const generateSalaryPaymentSchedule = (configuration, academicYear) => {
       totalAmount = configuration.baseSalary || 0;
       regularAmount = totalAmount;
     } else if (configuration.paymentType === "hourly") {
-      regularHours = 40; // Default hours per month, can be modified during payment
+      regularHours = 0; // Default hours per month, can be modified during payment
       hourlyRate = configuration.hourlyRate || 0;
       regularAmount = regularHours * hourlyRate;
       totalAmount = regularAmount;

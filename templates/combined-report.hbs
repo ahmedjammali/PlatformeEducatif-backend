@@ -311,14 +311,14 @@
                 <div class="value">{{formatCurrency outcomeData.summary.total_outcome}} TND</div>
                 <div class="label">Total Dépenses</div>
             </div>
-            <div class="summary-card income">
+            {{!-- <div class="summary-card income">
                 <div class="value">{{formatCurrency incomeData.summary.total_en_attente}} TND</div>
                 <div class="label">Revenus En Attente</div>
-            </div>
-            <div class="summary-card expense">
+            </div> --}}
+{{!--             <div class="summary-card expense">
                 <div class="value">{{formatCurrency outcomeData.summary.pending_salaries}} TND</div>
                 <div class="label">Salaires En Attente</div>
-            </div>
+            </div> --}}
             <div class="summary-card highlight">
                 <div class="value">{{incomeData.summary.total_etudiants}}</div>
                 <div class="label">Total Étudiants</div>
@@ -345,9 +345,9 @@
             <thead>
                 <tr>
                     <th>Composant</th>
-                    <th>Montant Attendu</th>
+                    {{!-- <th>Montant Attendu</th> --}}
                     <th>Montant Collecté</th>
-                    <th>Montant En Attente</th>
+                    {{!-- <th>Montant En Attente</th> --}}
                     <th>Taux de Collecte</th>
                 </tr>
             </thead>
@@ -355,9 +355,9 @@
                 {{#each incomeData.componentAnalysis}}
                 <tr>
                     <td><strong>{{this.name}}</strong></td>
-                    <td class="amount">{{formatCurrency this.attendu}} TND</td>
+                    {{!-- <td class="amount">{{formatCurrency this.attendu}} TND</td> --}}
                     <td class="amount income">{{formatCurrency this.collecte}} TND</td>
-                    <td class="amount">{{formatCurrency this.en_attente}} TND</td>
+                    {{!-- <td class="amount">{{formatCurrency this.en_attente}} TND</td> --}}
                     <td><strong>{{this.taux}}%</strong></td>
                 </tr>
                 {{/each}}
@@ -375,7 +375,7 @@
                     <th>Catégorie</th>
                     <th>Nb Étudiants</th>
                     <th>Montant Collecté</th>
-                    <th>Montant En Attente</th>
+                    {{!-- <th>Montant En Attente</th> --}}
                     <th>Taux de Collecte</th>
                 </tr>
             </thead>
@@ -386,7 +386,7 @@
                     <td>{{capitalize this.categorie}}</td>
                     <td>{{this.nbr_etudiants}}</td>
                     <td class="amount income">{{formatCurrency this.collecte}} TND</td>
-                    <td class="amount">{{formatCurrency this.en_attente}} TND</td>
+                    {{!-- <td class="amount">{{formatCurrency this.en_attente}} TND</td> --}}
                     <td><strong>{{this.taux}}%</strong></td>
                 </tr>
                 {{/each}}
@@ -432,8 +432,8 @@
                     <th>Rôle</th>
                     <th>Type de Paiement</th>
                     <th>Total Payé</th>
-                    <th>Total En Attente</th>
-                    <th>Total Attendu</th>
+                    {{!-- <th>Total En Attente</th> --}}
+                    {{!-- <th>Total Attendu</th> --}}
                     <th>Nb Employés</th>
                     <th>Taux de Paiement</th>
                 </tr>
@@ -444,8 +444,8 @@
                     <td><strong>{{capitalize this.role}}</strong></td>
                     <td>{{capitalize this.paymentType}}</td>
                     <td class="amount positive">{{formatCurrency this.total_paid}} TND</td>
-                    <td class="amount expense">{{formatCurrency this.total_pending}} TND</td>
-                    <td class="amount">{{formatCurrency this.total_expected}} TND</td>
+                    {{!-- <td class="amount expense">{{formatCurrency this.total_pending}} TND</td> --}}
+                    {{!-- <td class="amount">{{formatCurrency this.total_expected}} TND</td> --}}
                     <td>{{this.employee_count}}</td>
                     <td><strong>{{this.payment_rate}}%</strong></td>
                 </tr>
@@ -509,7 +509,7 @@
                     <th>Email</th>
                     <th>Niveau</th>
                     <th>Catégorie</th>
-                    <th>Montant Attendu</th>
+                    {{!-- <th>Montant Attendu</th> --}}
                     <th>Montant Payé</th>
                     <th>Montant Restant</th>
                     <th>Statut</th>
@@ -523,7 +523,7 @@
                     <td><small>{{this.email}}</small></td>
                     <td>{{this.niveau}}</td>
                     <td>{{capitalize this.categorie}}</td>
-                    <td class="amount">{{formatCurrency this.attendu}} TND</td>
+                    {{!-- <td class="amount">{{formatCurrency this.attendu}} TND</td> --}}
                     <td class="amount income">{{formatCurrency this.paye}} TND</td>
                     <td class="amount expense">{{formatCurrency this.restant}} TND</td>
                     <td>

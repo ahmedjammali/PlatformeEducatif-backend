@@ -14,9 +14,14 @@ const getIncomeAnalytics = async (req, res) => {
             category,
             startDate,
             endDate,
+            month,
             academicYear
         } = req.query;
         const schoolId = req.schoolId;
+
+        
+        // ✅ Declare matchConditions at the top
+        let matchConditions = {};
 
         // Build filter object
         let filter = {};

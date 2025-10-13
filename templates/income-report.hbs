@@ -341,18 +341,18 @@
                 <div class="value">{{summary.total_etudiants}}</div>
                 <div class="label">Total Étudiants</div>
             </div>
-            <div class="summary-card">
+            {{!-- <div class="summary-card">
                 <div class="value">{{formatCurrency summary.total_attendu}} TND</div>
                 <div class="label">Total Attendu</div>
-            </div>
+            </div> --}}
             <div class="summary-card highlight">
                 <div class="value">{{formatCurrency summary.total_collecte}} TND</div>
                 <div class="label">Total Collecté</div>
             </div>
-            <div class="summary-card">
+{{!--             <div class="summary-card">
                 <div class="value">{{formatCurrency summary.total_en_attente}} TND</div>
                 <div class="label">Total En Attente</div>
-            </div>
+            </div> --}}
             <div class="summary-card highlight">
                 <div class="value">{{summary.taux_global}}%</div>
                 <div class="label">Taux de Collecte Global</div>
@@ -371,9 +371,9 @@
             <thead>
                 <tr>
                     <th>Composant</th>
-                    <th>Montant Attendu</th>
+                    {{!-- <th>Montant Attendu</th> --}}
                     <th>Montant Collecté</th>
-                    <th>En Attente</th>
+                    {{!-- <th>En Attente</th> --}}
                     <th>Taux de Collecte</th>
                     <th>Progression</th>
                 </tr>
@@ -382,9 +382,9 @@
                 {{#each componentAnalysis}}
                 <tr>
                     <td><strong>{{this.name}}</strong></td>
-                    <td class="amount">{{formatCurrency this.attendu}} TND</td>
+                    {{!-- <td class="amount">{{formatCurrency this.attendu}} TND</td> --}}
                     <td class="amount positive">{{formatCurrency this.collecte}} TND</td>
-                    <td class="amount">{{formatCurrency this.en_attente}} TND</td>
+                    {{!-- <td class="amount">{{formatCurrency this.en_attente}} TND</td> --}}
                     <td><strong>{{this.taux}}%</strong></td>
                     <td>
                         <div class="progress-bar">
@@ -405,9 +405,9 @@
                 <tr>
                     <th>Catégorie</th>
                     <th>Nombre d'Étudiants</th>
-                    <th>Montant Attendu</th>
+                    {{!-- <th>Montant Attendu</th> --}}
                     <th>Montant Collecté</th>
-                    <th>En Attente</th>
+                    {{!-- <th>En Attente</th> --}}
                     <th>Taux de Collecte</th>
                 </tr>
             </thead>
@@ -416,9 +416,9 @@
                 <tr>
                     <td><strong>{{capitalize @key}}</strong></td>
                     <td>{{this.etudiants}}</td>
-                    <td class="amount">{{formatCurrency this.attendu}} TND</td>
+                    {{!-- <td class="amount">{{formatCurrency this.attendu}} TND</td> --}}
                     <td class="amount positive">{{formatCurrency this.collecte}} TND</td>
-                    <td class="amount">{{formatCurrency this.en_attente}} TND</td>
+                    {{!-- <td class="amount">{{formatCurrency this.en_attente}} TND</td> --}}
                     <td><strong>{{this.taux}}%</strong></td>
                 </tr>
                 {{/each}}
@@ -435,9 +435,9 @@
                     <th>Niveau</th>
                     <th>Catégorie</th>
                     <th>Nb Étudiants</th>
-                    <th>Attendu</th>
+                    {{!-- <th>Attendu</th> --}}
                     <th>Collecté</th>
-                    <th>En Attente</th>
+                    {{!-- <th>En Attente</th> --}}
                     <th>Taux</th>
                 </tr>
             </thead>
@@ -447,9 +447,9 @@
                     <td><strong>{{this.niveau}}</strong></td>
                     <td>{{capitalize this.categorie}}</td>
                     <td>{{this.nbr_etudiants}}</td>
-                    <td class="amount">{{formatCurrency this.attendu}} TND</td>
+                    {{!-- <td class="amount">{{formatCurrency this.attendu}} TND</td> --}}
                     <td class="amount positive">{{formatCurrency this.collecte}} TND</td>
-                    <td class="amount">{{formatCurrency this.en_attente}} TND</td>
+                    {{!-- <td class="amount">{{formatCurrency this.en_attente}} TND</td> --}}
                     <td><strong>{{this.taux}}%</strong></td>
                 </tr>
                 {{/each}}
