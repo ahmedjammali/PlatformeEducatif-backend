@@ -134,7 +134,7 @@ const getIncomeAnalytics = async (req, res) => {
                         const paymentDate = new Date(monthlyPayment.paymentDate);
                         if ((!startDate || paymentDate >= new Date(startDate)) &&
                             (!endDate || paymentDate <= new Date(endDate))) {
-                            dateRangePaidTotal += monthlyPayment.amount || 0;
+                            dateRangePaidTotal += monthlyPayment.paidAmount  || 0;
                         }
                     }
                 });
@@ -145,7 +145,7 @@ const getIncomeAnalytics = async (req, res) => {
                         const paymentDate = new Date(monthlyPayment.paymentDate);
                         if ((!startDate || paymentDate >= new Date(startDate)) &&
                             (!endDate || paymentDate <= new Date(endDate))) {
-                            dateRangePaidTotal += monthlyPayment.amount || 0;
+                            dateRangePaidTotal += monthlyPayment.paidAmount  || 0;
                         }
                     }
                 });
@@ -231,7 +231,7 @@ const getIncomeAnalytics = async (req, res) => {
                         const paymentDate = new Date(monthlyPayment.paymentDate);
                         if ((!startDate || paymentDate >= new Date(startDate)) &&
                             (!endDate || paymentDate <= new Date(endDate))) {
-                            dateRangePaidAmounts.tuition += monthlyPayment.amount || 0;
+                            dateRangePaidAmounts.tuition += monthlyPayment.paidAmount  || 0;
                         }
                     }
                 });
@@ -242,7 +242,7 @@ const getIncomeAnalytics = async (req, res) => {
                         const paymentDate = new Date(monthlyPayment.paymentDate);
                         if ((!startDate || paymentDate >= new Date(startDate)) &&
                             (!endDate || paymentDate <= new Date(endDate))) {
-                            dateRangePaidAmounts.transportation += monthlyPayment.amount || 0;
+                            dateRangePaidAmounts.transportation += monthlyPayment.paidAmount  || 0;
                         }
                     }
                 });
@@ -344,7 +344,7 @@ const getIncomeAnalytics = async (req, res) => {
                         const paymentDate = new Date(monthlyPayment.paymentDate);
                         if ((!startDate || paymentDate >= new Date(startDate)) &&
                             (!endDate || paymentDate <= new Date(endDate))) {
-                            dateRangePaidAmounts.tuition += monthlyPayment.amount || 0;
+                            dateRangePaidAmounts.tuition += monthlyPayment.paidAmount  || 0;
                         }
                     }
                 });
@@ -355,7 +355,7 @@ const getIncomeAnalytics = async (req, res) => {
                         const paymentDate = new Date(monthlyPayment.paymentDate);
                         if ((!startDate || paymentDate >= new Date(startDate)) &&
                             (!endDate || paymentDate <= new Date(endDate))) {
-                            dateRangePaidAmounts.transportation += monthlyPayment.amount || 0;
+                            dateRangePaidAmounts.transportation += monthlyPayment.paidAmount  || 0;
                         }
                     }
                 });
@@ -460,7 +460,7 @@ const getIncomeAnalytics = async (req, res) => {
                         const paymentDate = new Date(monthlyPayment.paymentDate);
                         if ((!startDate || paymentDate >= new Date(startDate)) &&
                             (!endDate || paymentDate <= new Date(endDate))) {
-                            dateRangePaidAmounts.tuition += monthlyPayment.amount || 0;
+                            dateRangePaidAmounts.tuition += monthlyPayment.paidAmount  || 0;
                         }
                     }
                 });
@@ -471,7 +471,7 @@ const getIncomeAnalytics = async (req, res) => {
                         const paymentDate = new Date(monthlyPayment.paymentDate);
                         if ((!startDate || paymentDate >= new Date(startDate)) &&
                             (!endDate || paymentDate <= new Date(endDate))) {
-                            dateRangePaidAmounts.transportation += monthlyPayment.amount || 0;
+                            dateRangePaidAmounts.transportation += monthlyPayment.paidAmount  || 0;
                         }
                     }
                 });
@@ -584,7 +584,7 @@ const getIncomeAnalytics = async (req, res) => {
                         const paymentDate = new Date(monthlyPayment.paymentDate);
                         if ((!startDate || paymentDate >= new Date(startDate)) &&
                             (!endDate || paymentDate <= new Date(endDate))) {
-                            dateRangePaidAmounts.tuition += monthlyPayment.amount || 0;
+                            dateRangePaidAmounts.tuition += monthlyPayment.paidAmount  || 0;
                         }
                     }
                 });
@@ -595,7 +595,7 @@ const getIncomeAnalytics = async (req, res) => {
                         const paymentDate = new Date(monthlyPayment.paymentDate);
                         if ((!startDate || paymentDate >= new Date(startDate)) &&
                             (!endDate || paymentDate <= new Date(endDate))) {
-                            dateRangePaidAmounts.transportation += monthlyPayment.amount || 0;
+                            dateRangePaidAmounts.transportation += monthlyPayment.paidAmount  || 0;
                         }
                     }
                 });
@@ -681,7 +681,7 @@ const getIncomeAnalytics = async (req, res) => {
                             const paymentDate = new Date(monthlyPayment.paymentDate);
                             if ((!startDate || paymentDate >= new Date(startDate)) &&
                                 (!endDate || paymentDate <= new Date(endDate))) {
-                                dateRangePaidAmounts.tuition += monthlyPayment.amount || 0;
+                                dateRangePaidAmounts.tuition += monthlyPayment.paidAmount  || 0;
                             }
                         }
                     });
@@ -692,7 +692,7 @@ const getIncomeAnalytics = async (req, res) => {
                             const paymentDate = new Date(monthlyPayment.paymentDate);
                             if ((!startDate || paymentDate >= new Date(startDate)) &&
                                 (!endDate || paymentDate <= new Date(endDate))) {
-                                dateRangePaidAmounts.transportation += monthlyPayment.amount || 0;
+                                dateRangePaidAmounts.transportation += monthlyPayment.paidAmount  || 0;
                             }
                         }
                     });
