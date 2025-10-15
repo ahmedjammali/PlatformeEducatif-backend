@@ -72,8 +72,17 @@ function loadTemplate(templateName) {
  */
 async function generatePDFFromHTML(html, options = {}) {
     const browser = await puppeteer.launch({
-        headless: 'new',
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+         headless: true,
+         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
+         args: [
+                 '--no-sandbox',
+                 '--disable-setuid-sandbox',
+                 '--disable-dev-shm-usage',
+                 '--disable-accelerated-2d-canvas',
+                 '--disable-gpu',
+         ],
+         defaultViewport: null,
+         timeout: 0 // disable launch timeout
     });
 
     try {
