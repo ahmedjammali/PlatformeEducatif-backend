@@ -1,6 +1,39 @@
-// Updated StudentPayment Schema with Grade-specific pricing, Uniform, and Transportation
-
 const mongoose = require('mongoose');
+
+// ✅ NEW: Sub-schema for individual payment transactions
+const paymentTransactionSchema = new mongoose.Schema({
+  amount: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+  paymentDate: {
+    type: Date,
+    required: true,
+    default: Date.now
+  },
+  paymentMethod: {
+    type: String,
+    enum: ['cash', 'check', 'bank_transfer', 'online'],
+    default: 'cash'
+  },
+  receiptNumber: {
+    type: String
+  },
+  notes: {
+    type: String,
+    trim: true
+  },
+  recordedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  recordedAt: {
+    type: Date,
+    default: Date.now
+  }
+});
 
 const studentPaymentSchema = new mongoose.Schema({
   student: {
@@ -18,24 +51,18 @@ const studentPaymentSchema = new mongoose.Schema({
     required: true
   },
   
-  // ✅ UPDATED: Store specific grade instead of class group
-grade: {
-  type: String,
-  required: true,
-  enum: [
-    // Maternal (single grade)
-    'Maternal',
-    // Primaire
-    '1ère année primaire', '2ème année primaire', '3ème année primaire', 
-    '4ème année primaire', '5ème année primaire', '6ème année primaire',
-    // Collège (Middle School)
-    '7ème année', '8ème année', '9ème année',
-    // Lycée (High School)
-    '1ère année lycée', '2ème année lycée', '3ème année lycée', '4ème année lycée'
-  ]
-},
+  grade: {
+    type: String,
+    required: true,
+    enum: [
+      'Maternal',
+      '1ère année primaire', '2ème année primaire', '3ème année primaire', 
+      '4ème année primaire', '5ème année primaire', '6ème année primaire',
+      '7ème année', '8ème année', '9ème année',
+      '1ère année lycée', '2ème année lycée', '3ème année lycée', '4ème année lycée'
+    ]
+  },
   
-  // ✅ NEW: Grade category for easier filtering
   gradeCategory: {
     type: String,
     enum: ['maternelle', 'primaire', 'secondaire'],
@@ -47,12 +74,13 @@ grade: {
     required: true
   },
   
-  // Payment schedule type
   paymentType: {
     type: String,
     enum: ['monthly', 'annual'],
     default: 'monthly'
   },
+
+  // ✅ FIXED: Inscription Fee with transaction history
   inscriptionFee: {
     applicable: {
       type: Boolean,
@@ -67,27 +95,10 @@ grade: {
       type: Boolean,
       default: false
     },
-    paymentDate: {
-      type: Date
-    },
-    paymentMethod: {
-      type: String,
-      enum: ['cash', 'check', 'bank_transfer', 'online']
-    },
-    receiptNumber: {
-      type: String
-    },
-    notes: {
-      type: String,
-      trim: true
-    },
-    recordedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    }
+    // ✅ NEW: Track payment history instead of single payment
+    paymentHistory: [paymentTransactionSchema]
   },
 
-  // ✅ NEW: Tuition fees (academic fees)
   tuitionFees: {
     amount: {
       type: Number,
@@ -101,7 +112,7 @@ grade: {
     }
   },
 
-  // ✅ NEW: Uniform purchase details
+  // ✅ FIXED: Uniform with transaction history
   uniform: {
     purchased: {
       type: Boolean,
@@ -116,27 +127,11 @@ grade: {
       type: Boolean,
       default: false
     },
-    paymentDate: {
-      type: Date
-    },
-    paymentMethod: {
-      type: String,
-      enum: ['cash', 'check', 'bank_transfer', 'online']
-    },
-    receiptNumber: {
-      type: String
-    },
-    notes: {
-      type: String,
-      trim: true
-    },
-    recordedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    }
+    // ✅ NEW: Track payment history
+    paymentHistory: [paymentTransactionSchema]
   },
 
-  // ✅ NEW: Transportation details
+  // ✅ FIXED: Transportation with payment history for each month
   transportation: {
     using: {
       type: Boolean,
@@ -144,8 +139,7 @@ grade: {
     },
     type: {
       type: String,
-      enum: ['close', 'far'],
-      required: function() { return this.transportation.using; }
+      enum: ['close', 'far']
     },
     monthlyPrice: {
       type: Number,
@@ -157,7 +151,6 @@ grade: {
       default: 0,
       min: 0
     },
-    // Monthly transportation payments
     monthlyPayments: [{
       month: {
         type: Number,
@@ -188,28 +181,12 @@ grade: {
         default: 0,
         min: 0
       },
-      paymentDate: {
-        type: Date
-      },
-      paymentMethod: {
-        type: String,
-        enum: ['cash', 'check', 'bank_transfer', 'online']
-      },
-      receiptNumber: {
-        type: String
-      },
-      notes: {
-        type: String,
-        trim: true
-      },
-      recordedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-      }
+      // ✅ NEW: Payment history for this month
+      paymentHistory: [paymentTransactionSchema]
     }]
   },
 
-  // ✅ UPDATED: Tuition monthly payment records
+  // ✅ FIXED: Tuition monthly payments with transaction history
   tuitionMonthlyPayments: [{
     month: {
       type: Number,
@@ -240,32 +217,15 @@ grade: {
       default: 0,
       min: 0
     },
-    paymentDate: {
-      type: Date
-    },
-    paymentMethod: {
-      type: String,
-      enum: ['cash', 'check', 'bank_transfer', 'online'],
-      default: 'cash'
-    },
-    receiptNumber: {
-      type: String
-    },
-    notes: {
-      type: String,
-      trim: true
-    },
-    recordedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    }
+    // ✅ NEW: Payment history - tracks ALL payments made for this month
+    paymentHistory: [paymentTransactionSchema]
   }],
 
   totalAmounts: {
     tuition: { type: Number, required: true, min: 0 },
     uniform: { type: Number, default: 0, min: 0 },
     transportation: { type: Number, default: 0, min: 0 },
-    inscriptionFee: { type: Number, default: 0, min: 0 }, // ✅ NEW
+    inscriptionFee: { type: Number, default: 0, min: 0 },
     grandTotal: { type: Number, required: true, min: 0 }
   },
 
@@ -273,62 +233,49 @@ grade: {
     tuition: { type: Number, default: 0, min: 0 },
     uniform: { type: Number, default: 0, min: 0 },
     transportation: { type: Number, default: 0, min: 0 },
-    inscriptionFee: { type: Number, default: 0, min: 0 }, // ✅ NEW
+    inscriptionFee: { type: Number, default: 0, min: 0 },
     grandTotal: { type: Number, default: 0, min: 0 }
   },
-remainingAmounts: {
-    tuition: { type: Number, default: function() { return this.totalAmounts.tuition - this.paidAmounts.tuition; } },
-    uniform: { type: Number, default: function() { return this.totalAmounts.uniform - this.paidAmounts.uniform; } },
-    transportation: { type: Number, default: function() { return this.totalAmounts.transportation - this.paidAmounts.transportation; } },
-    inscriptionFee: { type: Number, default: function() { return this.totalAmounts.inscriptionFee - this.paidAmounts.inscriptionFee; } }, // ✅ NEW
-    grandTotal: { type: Number, default: function() { return this.totalAmounts.grandTotal - this.paidAmounts.grandTotal; } }
-  },
-  discount: {
-  enabled: {
-    type: Boolean,
-    default: false
-  },
-  type: {
-    type: String,
-    enum: ['monthly', 'annual'],
-    required: function() { return this.discount.enabled; }
-  },
-  percentage: {
-    type: Number,
-    min: 0,
-    max: 100,
-    required: function() { return this.discount.enabled; }
-  },
-  appliedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: function() { return this.discount.enabled; }
-  },
-  appliedDate: {
-    type: Date,
-    required: function() { return this.discount.enabled; }
-  },
-  notes: {
-    type: String,
-    trim: true
-  }
+
+  remainingAmounts: {
+    tuition: { type: Number, default: 0 },
+    uniform: { type: Number, default: 0 },
+    transportation: { type: Number, default: 0 },
+    inscriptionFee: { type: Number, default: 0 },
+    grandTotal: { type: Number, default: 0 }
   },
 
-  // ✅ UPDATED: Annual payment details (for tuition only)
+  discount: {
+    enabled: {
+      type: Boolean,
+      default: false
+    },
+    type: {
+      type: String,
+      enum: ['monthly', 'annual']
+    },
+    percentage: {
+      type: Number,
+      min: 0,
+      max: 100
+    },
+    appliedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    appliedDate: {
+      type: Date
+    },
+    notes: {
+      type: String,
+      trim: true
+    }
+  },
+
   annualTuitionPayment: {
     isPaid: {
       type: Boolean,
       default: false
-    },
-    paymentDate: {
-      type: Date
-    },
-    paymentMethod: {
-      type: String,
-      enum: ['cash', 'check', 'bank_transfer', 'online']
-    },
-    receiptNumber: {
-      type: String
     },
     discount: {
       type: Number,
@@ -339,24 +286,21 @@ remainingAmounts: {
       type: String,
       trim: true
     },
-    recordedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    }
+    // ✅ NEW: Payment history for annual payment
+    paymentHistory: [paymentTransactionSchema]
   },
 
-  // Overall payment status
   overallStatus: {
     type: String,
     enum: ['pending', 'partial', 'completed', 'overdue'],
     default: 'pending'
   },
 
-componentStatus: {
+  componentStatus: {
     tuition: { type: String, enum: ['pending', 'partial', 'completed', 'overdue'], default: 'pending' },
     uniform: { type: String, enum: ['not_applicable', 'pending', 'completed'], default: 'not_applicable' },
     transportation: { type: String, enum: ['not_applicable', 'pending', 'partial', 'completed', 'overdue'], default: 'not_applicable' },
-    inscriptionFee: { type: String, enum: ['not_applicable', 'pending', 'completed'], default: 'not_applicable' } // ✅ NEW
+    inscriptionFee: { type: String, enum: ['not_applicable', 'pending', 'completed'], default: 'not_applicable' }
   },
 
   createdBy: {
@@ -368,24 +312,67 @@ componentStatus: {
   timestamps: true
 });
 
-// Indexes for efficient queries
+// Indexes
 studentPaymentSchema.index({ student: 1, academicYear: 1 });
 studentPaymentSchema.index({ school: 1, academicYear: 1 });
 studentPaymentSchema.index({ grade: 1 });
 studentPaymentSchema.index({ gradeCategory: 1 });
 studentPaymentSchema.index({ overallStatus: 1 });
-studentPaymentSchema.index({ 'componentStatus.tuition': 1 });
-studentPaymentSchema.index({ 'componentStatus.transportation': 1 });
 
-// ✅ NEW: Method to update component status
+// ✅ NEW: Method to calculate total paid amount from payment history
+studentPaymentSchema.methods.calculatePaidAmount = function(paymentHistory) {
+  if (!paymentHistory || paymentHistory.length === 0) return 0;
+  return paymentHistory.reduce((sum, transaction) => sum + transaction.amount, 0);
+};
+
+// ✅ UPDATED: Calculate remaining amounts using payment history
+studentPaymentSchema.methods.calculateRemainingAmounts = function() {
+  // Calculate tuition from payment history
+  this.paidAmounts.tuition = 0;
+  this.tuitionMonthlyPayments.forEach(monthly => {
+    monthly.paidAmount = this.calculatePaidAmount(monthly.paymentHistory);
+    this.paidAmounts.tuition += monthly.paidAmount;
+  });
+
+  // Calculate transportation from payment history
+  this.paidAmounts.transportation = 0;
+  if (this.transportation.using) {
+    this.transportation.monthlyPayments.forEach(monthly => {
+      monthly.paidAmount = this.calculatePaidAmount(monthly.paymentHistory);
+      this.paidAmounts.transportation += monthly.paidAmount;
+    });
+  }
+
+  // Calculate uniform from payment history
+  this.paidAmounts.uniform = this.calculatePaidAmount(this.uniform.paymentHistory);
+
+  // Calculate inscription fee from payment history
+  this.paidAmounts.inscriptionFee = this.calculatePaidAmount(this.inscriptionFee.paymentHistory);
+
+  // Calculate grand total
+  this.paidAmounts.grandTotal = this.paidAmounts.tuition + 
+                                this.paidAmounts.uniform + 
+                                this.paidAmounts.transportation + 
+                                this.paidAmounts.inscriptionFee;
+
+  // Calculate remaining
+  this.remainingAmounts.tuition = this.totalAmounts.tuition - this.paidAmounts.tuition;
+  this.remainingAmounts.uniform = this.totalAmounts.uniform - this.paidAmounts.uniform;
+  this.remainingAmounts.transportation = this.totalAmounts.transportation - this.paidAmounts.transportation;
+  this.remainingAmounts.inscriptionFee = this.totalAmounts.inscriptionFee - this.paidAmounts.inscriptionFee;
+  this.remainingAmounts.grandTotal = this.totalAmounts.grandTotal - this.paidAmounts.grandTotal;
+
+  return this.remainingAmounts;
+};
+
 studentPaymentSchema.methods.updateComponentStatus = function() {
   // Update tuition status
   if (this.annualTuitionPayment.isPaid) {
     this.componentStatus.tuition = 'completed';
   } else {
-    const paidTuitionPayments = this.tuitionMonthlyPayments.filter(payment => payment.status === 'paid');
-    const overdueTuitionPayments = this.tuitionMonthlyPayments.filter(payment => payment.status === 'overdue');
-    const partialTuitionPayments = this.tuitionMonthlyPayments.filter(payment => payment.status === 'partial');
+    const paidTuitionPayments = this.tuitionMonthlyPayments.filter(p => p.status === 'paid');
+    const overdueTuitionPayments = this.tuitionMonthlyPayments.filter(p => p.status === 'overdue');
+    const partialTuitionPayments = this.tuitionMonthlyPayments.filter(p => p.status === 'partial');
 
     if (paidTuitionPayments.length === this.tuitionMonthlyPayments.length) {
       this.componentStatus.tuition = 'completed';
@@ -405,17 +392,18 @@ studentPaymentSchema.methods.updateComponentStatus = function() {
     this.componentStatus.uniform = 'not_applicable';
   }
 
+  // Update inscription fee status
   if (this.inscriptionFee.applicable) {
-  this.componentStatus.inscriptionFee = this.inscriptionFee.isPaid ? 'completed' : 'pending';
-} else {
-  this.componentStatus.inscriptionFee = 'not_applicable';
-}
+    this.componentStatus.inscriptionFee = this.inscriptionFee.isPaid ? 'completed' : 'pending';
+  } else {
+    this.componentStatus.inscriptionFee = 'not_applicable';
+  }
 
   // Update transportation status
   if (this.transportation.using) {
-    const paidTransportPayments = this.transportation.monthlyPayments.filter(payment => payment.status === 'paid');
-    const overdueTransportPayments = this.transportation.monthlyPayments.filter(payment => payment.status === 'overdue');
-    const partialTransportPayments = this.transportation.monthlyPayments.filter(payment => payment.status === 'partial');
+    const paidTransportPayments = this.transportation.monthlyPayments.filter(p => p.status === 'paid');
+    const overdueTransportPayments = this.transportation.monthlyPayments.filter(p => p.status === 'overdue');
+    const partialTransportPayments = this.transportation.monthlyPayments.filter(p => p.status === 'partial');
 
     if (paidTransportPayments.length === this.transportation.monthlyPayments.length) {
       this.componentStatus.transportation = 'completed';
@@ -431,14 +419,10 @@ studentPaymentSchema.methods.updateComponentStatus = function() {
   }
 };
 
-// ✅ UPDATED: Method to update overall status
 studentPaymentSchema.methods.updateOverallStatus = function() {
   this.updateComponentStatus();
 
-  // Determine overall status based on component statuses
-  const applicableStatuses = [];
-  
-  applicableStatuses.push(this.componentStatus.tuition);
+  const applicableStatuses = [this.componentStatus.tuition];
   
   if (this.componentStatus.uniform !== 'not_applicable') {
     applicableStatuses.push(this.componentStatus.uniform);
@@ -447,9 +431,10 @@ studentPaymentSchema.methods.updateOverallStatus = function() {
   if (this.componentStatus.transportation !== 'not_applicable') {
     applicableStatuses.push(this.componentStatus.transportation);
   }
+  
   if (this.componentStatus.inscriptionFee !== 'not_applicable') {
-  applicableStatuses.push(this.componentStatus.inscriptionFee);
-}
+    applicableStatuses.push(this.componentStatus.inscriptionFee);
+  }
 
   if (applicableStatuses.every(status => status === 'completed')) {
     this.overallStatus = 'completed';
@@ -462,69 +447,48 @@ studentPaymentSchema.methods.updateOverallStatus = function() {
   }
 };
 
-// ✅ UPDATED: Method to calculate remaining amounts
-studentPaymentSchema.methods.calculateRemainingAmounts = function() {
-  this.remainingAmounts.tuition = this.totalAmounts.tuition - this.paidAmounts.tuition;
-  this.remainingAmounts.uniform = this.totalAmounts.uniform - this.paidAmounts.uniform;
-  this.remainingAmounts.transportation = this.totalAmounts.transportation - this.paidAmounts.transportation;
-  this.remainingAmounts.inscriptionFee = (this.totalAmounts.inscriptionFee || 0) - (this.paidAmounts.inscriptionFee || 0);
-  this.remainingAmounts.grandTotal = this.totalAmounts.grandTotal - this.paidAmounts.grandTotal;
-  
-  return this.remainingAmounts;
-};
-
-// ✅ UPDATED: Method to update payment statuses based on due dates
 studentPaymentSchema.methods.updatePaymentStatuses = function(gracePeriod = 5) {
   const currentDate = new Date();
   
   // Update tuition payment statuses
   this.tuitionMonthlyPayments.forEach(payment => {
-    if (payment.status === 'paid') return;
-    
-    const gracePeriodDate = new Date(payment.dueDate);
-    gracePeriodDate.setDate(gracePeriodDate.getDate() + gracePeriod);
-    
-    if (currentDate > gracePeriodDate && payment.status === 'pending') {
-      payment.status = 'overdue';
+    if (payment.paidAmount >= payment.amount) {
+      payment.status = 'paid';
+    } else if (payment.paidAmount > 0) {
+      payment.status = 'partial';
+    } else {
+      const gracePeriodDate = new Date(payment.dueDate);
+      gracePeriodDate.setDate(gracePeriodDate.getDate() + gracePeriod);
+      
+      if (currentDate > gracePeriodDate) {
+        payment.status = 'overdue';
+      } else {
+        payment.status = 'pending';
+      }
     }
   });
 
   // Update transportation payment statuses
   if (this.transportation.using) {
     this.transportation.monthlyPayments.forEach(payment => {
-      if (payment.status === 'paid') return;
-      
-      const gracePeriodDate = new Date(payment.dueDate);
-      gracePeriodDate.setDate(gracePeriodDate.getDate() + gracePeriod);
-      
-      if (currentDate > gracePeriodDate && payment.status === 'pending') {
-        payment.status = 'overdue';
+      if (payment.paidAmount >= payment.amount) {
+        payment.status = 'paid';
+      } else if (payment.paidAmount > 0) {
+        payment.status = 'partial';
+      } else {
+        const gracePeriodDate = new Date(payment.dueDate);
+        gracePeriodDate.setDate(gracePeriodDate.getDate() + gracePeriod);
+        
+        if (currentDate > gracePeriodDate) {
+          payment.status = 'overdue';
+        } else {
+          payment.status = 'pending';
+        }
       }
     });
   }
   
   this.updateOverallStatus();
-};
-
-// ✅ NEW: Method to get total monthly payment amount
-studentPaymentSchema.methods.getMonthlyPaymentAmount = function(month) {
-  let totalMonthly = 0;
-  
-  // Add tuition monthly amount
-  const tuitionPayment = this.tuitionMonthlyPayments.find(p => p.month === month);
-  if (tuitionPayment) {
-    totalMonthly += tuitionPayment.amount;
-  }
-  
-  // Add transportation monthly amount if applicable
-  if (this.transportation.using) {
-    const transportPayment = this.transportation.monthlyPayments.find(p => p.month === month);
-    if (transportPayment) {
-      totalMonthly += transportPayment.amount;
-    }
-  }
-  
-  return totalMonthly;
 };
 
 module.exports = mongoose.model('StudentPayment', studentPaymentSchema);

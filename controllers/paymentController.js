@@ -533,7 +533,7 @@ const generatePaymentForStudent = async (req, res) => {
   }
 };
 
-// ✅ NEW: Record Uniform PaymentbulkGeneratePayments 
+
 const recordUniformPayment = async (req, res) => {
   try {
     const { studentId } = req.params;
@@ -541,49 +541,55 @@ const recordUniformPayment = async (req, res) => {
       paymentMethod, 
       paymentDate, 
       notes, 
-      receiptNumber 
+      receiptNumber,
+      amount  // ✅ NEW: Allow partial payments
     } = req.body;
     const userId = req.userId;
     const { academicYear } = req.query;
     
-    // Get current academic year if not specified
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     const targetYear = academicYear || `${currentYear}-${currentYear + 1}`;
     
-    // Find payment record
     const paymentRecord = await StudentPayment.findOne({
       student: studentId,
       academicYear: targetYear
     });
     
     if (!paymentRecord) {
-      return res.status(404).json({ 
-        message: 'Payment record not found. Please generate payment schedule first.' 
-      });
+      return res.status(404).json({ message: 'Payment record not found' });
     }
     
     if (!paymentRecord.uniform.purchased) {
       return res.status(400).json({ message: 'Student has not opted for uniform purchase' });
     }
     
-    if (paymentRecord.uniform.isPaid) {
-      return res.status(400).json({ message: 'Uniform payment already recorded' });
+    // ✅ NEW: Allow multiple payments until fully paid
+    const paymentAmount = amount || paymentRecord.uniform.price;
+    
+    const transaction = {
+      amount: parseFloat(paymentAmount),
+      paymentDate: paymentDate || new Date(),
+      paymentMethod: paymentMethod || 'cash',
+      receiptNumber: receiptNumber,
+      notes: notes,
+      recordedBy: userId,
+      recordedAt: new Date()
+    };
+    
+    if (!paymentRecord.uniform.paymentHistory) {
+      paymentRecord.uniform.paymentHistory = [];
     }
+    paymentRecord.uniform.paymentHistory.push(transaction);
     
-    // Update uniform payment
-    paymentRecord.uniform.isPaid = true;
-    paymentRecord.uniform.paymentDate = paymentDate || new Date();
-    paymentRecord.uniform.paymentMethod = paymentMethod || 'cash';
-    paymentRecord.uniform.receiptNumber = receiptNumber;
-    paymentRecord.uniform.notes = notes;
-    paymentRecord.uniform.recordedBy = userId;
+    // Calculate total paid from history
+    const totalPaid = paymentRecord.uniform.paymentHistory.reduce(
+      (sum, t) => sum + t.amount, 0
+    );
     
-    // Update paid amounts
-    paymentRecord.paidAmounts.uniform = paymentRecord.uniform.price;
-    paymentRecord.paidAmounts.grandTotal += paymentRecord.uniform.price;
+    // Update status
+    paymentRecord.uniform.isPaid = totalPaid >= paymentRecord.uniform.price;
     
-    // Calculate remaining amounts and update status
     paymentRecord.calculateRemainingAmounts();
     paymentRecord.updateOverallStatus();
     
@@ -591,6 +597,89 @@ const recordUniformPayment = async (req, res) => {
     
     res.status(200).json({
       message: 'Uniform payment recorded successfully',
+      transaction: transaction,
+      uniform: {
+        price: paymentRecord.uniform.price,
+        totalPaid: totalPaid,
+        remaining: paymentRecord.uniform.price - totalPaid,
+        isPaid: paymentRecord.uniform.isPaid,
+        paymentHistory: paymentRecord.uniform.paymentHistory
+      },
+      paymentRecord: paymentRecord
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+// ✅ UPDATED: Record Inscription Fee Payment
+const recordInscriptionFeePayment = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { 
+      paymentMethod, 
+      paymentDate, 
+      notes, 
+      receiptNumber,
+      amount  // ✅ NEW: Allow partial payments
+    } = req.body;
+    const userId = req.userId;
+    const { academicYear } = req.query;
+    
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const targetYear = academicYear || `${currentYear}-${currentYear + 1}`;
+    
+    const paymentRecord = await StudentPayment.findOne({
+      student: studentId,
+      academicYear: targetYear
+    });
+    
+    if (!paymentRecord) {
+      return res.status(404).json({ message: 'Payment record not found' });
+    }
+    
+    if (!paymentRecord.inscriptionFee.applicable) {
+      return res.status(400).json({ message: 'Inscription fee not applicable' });
+    }
+    
+    const paymentAmount = amount || paymentRecord.inscriptionFee.price;
+    
+    const transaction = {
+      amount: parseFloat(paymentAmount),
+      paymentDate: paymentDate || new Date(),
+      paymentMethod: paymentMethod || 'cash',
+      receiptNumber: receiptNumber,
+      notes: notes,
+      recordedBy: userId,
+      recordedAt: new Date()
+    };
+    
+    if (!paymentRecord.inscriptionFee.paymentHistory) {
+      paymentRecord.inscriptionFee.paymentHistory = [];
+    }
+    paymentRecord.inscriptionFee.paymentHistory.push(transaction);
+    
+    const totalPaid = paymentRecord.inscriptionFee.paymentHistory.reduce(
+      (sum, t) => sum + t.amount, 0
+    );
+    
+    paymentRecord.inscriptionFee.isPaid = totalPaid >= paymentRecord.inscriptionFee.price;
+    
+    paymentRecord.calculateRemainingAmounts();
+    paymentRecord.updateOverallStatus();
+    
+    await paymentRecord.save();
+    
+    res.status(200).json({
+      message: 'Inscription fee payment recorded successfully',
+      transaction: transaction,
+      inscriptionFee: {
+        price: paymentRecord.inscriptionFee.price,
+        totalPaid: totalPaid,
+        remaining: paymentRecord.inscriptionFee.price - totalPaid,
+        isPaid: paymentRecord.inscriptionFee.isPaid,
+        paymentHistory: paymentRecord.inscriptionFee.paymentHistory
+      },
       paymentRecord: paymentRecord
     });
   } catch (error) {
@@ -598,10 +687,13 @@ const recordUniformPayment = async (req, res) => {
   }
 };
 
-const recordInscriptionFeePayment = async (req, res) => {
+
+const recordMonthlyTuitionPayment = async (req, res) => {
   try {
     const { studentId } = req.params;
     const { 
+      monthIndex, 
+      amount, 
       paymentMethod, 
       paymentDate, 
       notes, 
@@ -625,101 +717,41 @@ const recordInscriptionFeePayment = async (req, res) => {
       });
     }
     
-    if (!paymentRecord.inscriptionFee.applicable) {
-      return res.status(400).json({ message: 'Inscription fee not applicable for this student' });
-    }
-    
-    if (paymentRecord.inscriptionFee.isPaid) {
-      return res.status(400).json({ message: 'Inscription fee already paid' });
-    }
-    
-    // Update inscription fee payment
-    paymentRecord.inscriptionFee.isPaid = true;
-    paymentRecord.inscriptionFee.paymentDate = paymentDate || new Date();
-    paymentRecord.inscriptionFee.paymentMethod = paymentMethod || 'cash';
-    paymentRecord.inscriptionFee.receiptNumber = receiptNumber;
-    paymentRecord.inscriptionFee.notes = notes;
-    paymentRecord.inscriptionFee.recordedBy = userId;
-    
-    // Update paid amounts
-    paymentRecord.paidAmounts.inscriptionFee = paymentRecord.inscriptionFee.price;
-    paymentRecord.paidAmounts.grandTotal += paymentRecord.inscriptionFee.price;
-    
-    // Calculate remaining amounts and update status
-    paymentRecord.calculateRemainingAmounts();
-    paymentRecord.updateOverallStatus();
-    
-    await paymentRecord.save();
-    
-    res.status(200).json({
-      message: 'Inscription fee payment recorded successfully',
-      paymentRecord: paymentRecord
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-};
-
-// ✅ UPDATED: Record Monthly Tuition Payment
-const recordMonthlyTuitionPayment = async (req, res) => {
-  try {
-    const { studentId } = req.params;
-    const { 
-      monthIndex, 
-      amount, 
-      paymentMethod, 
-      paymentDate, 
-      notes, 
-      receiptNumber 
-    } = req.body;
-    const userId = req.userId;
-    const { academicYear } = req.query;
-    
-    // Get current academic year if not specified
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const targetYear = academicYear || `${currentYear}-${currentYear + 1}`;
-    
-    // Find payment record
-    const paymentRecord = await StudentPayment.findOne({
-      student: studentId,
-      academicYear: targetYear
-    });
-    
-    if (!paymentRecord) {
-      return res.status(404).json({ 
-        message: 'Payment record not found. Please generate payment schedule first.' 
-      });
-    }
-    
-    // Get the specific monthly payment
     const monthlyPayment = paymentRecord.tuitionMonthlyPayments[monthIndex];
     if (!monthlyPayment) {
       return res.status(404).json({ message: 'Monthly payment not found' });
     }
     
-    // Update monthly payment
-    const paidAmount = parseFloat(amount);
-    const previousPaidAmount = monthlyPayment.paidAmount;
-    monthlyPayment.paidAmount += paidAmount;
-    monthlyPayment.paymentDate = paymentDate || new Date();
-    monthlyPayment.paymentMethod = paymentMethod || 'cash';
-    monthlyPayment.receiptNumber = receiptNumber;
-    monthlyPayment.notes = notes;
-    monthlyPayment.recordedBy = userId;
+    // ✅ NEW: Add transaction to payment history
+    const transaction = {
+      amount: parseFloat(amount),
+      paymentDate: paymentDate || new Date(),
+      paymentMethod: paymentMethod || 'cash',
+      receiptNumber: receiptNumber,
+      notes: notes,
+      recordedBy: userId,
+      recordedAt: new Date()
+    };
     
-    // Update status based on amount paid
+    // Add to payment history
+    if (!monthlyPayment.paymentHistory) {
+      monthlyPayment.paymentHistory = [];
+    }
+    monthlyPayment.paymentHistory.push(transaction);
+    
+    // ✅ FIXED: Recalculate paidAmount from payment history
+    monthlyPayment.paidAmount = monthlyPayment.paymentHistory.reduce(
+      (sum, t) => sum + t.amount, 0
+    );
+    
+    // Update status
     if (monthlyPayment.paidAmount >= monthlyPayment.amount) {
       monthlyPayment.status = 'paid';
     } else if (monthlyPayment.paidAmount > 0) {
       monthlyPayment.status = 'partial';
     }
     
-    // Update total paid amount
-    paymentRecord.paidAmounts.tuition += paidAmount;
-    paymentRecord.paidAmounts.grandTotal += paidAmount;
-    
-    // Calculate remaining amounts and update status
+    // Recalculate total paid amounts
     paymentRecord.calculateRemainingAmounts();
     paymentRecord.updateOverallStatus();
     
@@ -727,14 +759,20 @@ const recordMonthlyTuitionPayment = async (req, res) => {
     
     res.status(200).json({
       message: 'Tuition payment recorded successfully',
+      transaction: transaction,
+      monthlyPayment: {
+        month: monthlyPayment.monthName,
+        totalPaid: monthlyPayment.paidAmount,
+        remaining: monthlyPayment.amount - monthlyPayment.paidAmount,
+        status: monthlyPayment.status,
+        paymentHistory: monthlyPayment.paymentHistory
+      },
       paymentRecord: paymentRecord
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
-// ✅ NEW: Record Monthly Transportation Payment
 const recordMonthlyTransportationPayment = async (req, res) => {
   try {
     const { studentId } = req.params;
@@ -749,54 +787,56 @@ const recordMonthlyTransportationPayment = async (req, res) => {
     const userId = req.userId;
     const { academicYear } = req.query;
     
-    // Get current academic year if not specified
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     const targetYear = academicYear || `${currentYear}-${currentYear + 1}`;
     
-    // Find payment record
     const paymentRecord = await StudentPayment.findOne({
       student: studentId,
       academicYear: targetYear
     });
     
     if (!paymentRecord) {
-      return res.status(404).json({ 
-        message: 'Payment record not found. Please generate payment schedule first.' 
-      });
+      return res.status(404).json({ message: 'Payment record not found' });
     }
     
     if (!paymentRecord.transportation.using) {
       return res.status(400).json({ message: 'Student is not using transportation service' });
     }
     
-    // Get the specific monthly payment
     const monthlyPayment = paymentRecord.transportation.monthlyPayments[monthIndex];
     if (!monthlyPayment) {
       return res.status(404).json({ message: 'Monthly transportation payment not found' });
     }
     
-    // Update monthly payment
-    const paidAmount = parseFloat(amount);
-    monthlyPayment.paidAmount += paidAmount;
-    monthlyPayment.paymentDate = paymentDate || new Date();
-    monthlyPayment.paymentMethod = paymentMethod || 'cash';
-    monthlyPayment.receiptNumber = receiptNumber;
-    monthlyPayment.notes = notes;
-    monthlyPayment.recordedBy = userId;
+    // ✅ NEW: Add transaction to payment history
+    const transaction = {
+      amount: parseFloat(amount),
+      paymentDate: paymentDate || new Date(),
+      paymentMethod: paymentMethod || 'cash',
+      receiptNumber: receiptNumber,
+      notes: notes,
+      recordedBy: userId,
+      recordedAt: new Date()
+    };
     
-    // Update status based on amount paid
+    if (!monthlyPayment.paymentHistory) {
+      monthlyPayment.paymentHistory = [];
+    }
+    monthlyPayment.paymentHistory.push(transaction);
+    
+    // ✅ FIXED: Recalculate from payment history
+    monthlyPayment.paidAmount = monthlyPayment.paymentHistory.reduce(
+      (sum, t) => sum + t.amount, 0
+    );
+    
+    // Update status
     if (monthlyPayment.paidAmount >= monthlyPayment.amount) {
       monthlyPayment.status = 'paid';
     } else if (monthlyPayment.paidAmount > 0) {
       monthlyPayment.status = 'partial';
     }
     
-    // Update total paid amount
-    paymentRecord.paidAmounts.transportation += paidAmount;
-    paymentRecord.paidAmounts.grandTotal += paidAmount;
-    
-    // Calculate remaining amounts and update status
     paymentRecord.calculateRemainingAmounts();
     paymentRecord.updateOverallStatus();
     
@@ -804,6 +844,14 @@ const recordMonthlyTransportationPayment = async (req, res) => {
     
     res.status(200).json({
       message: 'Transportation payment recorded successfully',
+      transaction: transaction,
+      monthlyPayment: {
+        month: monthlyPayment.monthName,
+        totalPaid: monthlyPayment.paidAmount,
+        remaining: monthlyPayment.amount - monthlyPayment.paidAmount,
+        status: monthlyPayment.status,
+        paymentHistory: monthlyPayment.paymentHistory
+      },
       paymentRecord: paymentRecord
     });
   } catch (error) {
