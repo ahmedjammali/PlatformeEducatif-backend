@@ -7,6 +7,8 @@ const Exercise = require('../models/Exercise');
 const Grade = require('../models/Grade');
 const StudentProgress = require('../models/StudentProgress');
 const StudentPayment = require('../models/StudentPayment');
+const TeacherAdminSalary = require('../models/TeacherAdminSalary');
+const SalaryConfiguration = require('../models/SalaryConfiguration');
 
 // Helper function to generate JWT token
 const generateToken = (userId) => {
@@ -326,8 +328,6 @@ const updateUser = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
-// Delete user
 const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -371,7 +371,13 @@ const deleteUser = async (req, res) => {
       // Delete all exercises created by this teacher
       const deletedExercises = await Exercise.deleteMany({ createdBy: id });
       
-      console.log(`Deleted ${deletedExercises.deletedCount} exercises and ${deletedProgress.deletedCount} student progress records for teacher ${user.name}`);
+      // Delete all salary records for this teacher
+      const deletedSalaryRecords = await TeacherAdminSalary.deleteMany({ user: id });
+      
+      // Delete all salary configurations for this teacher
+      const deletedSalaryConfigs = await SalaryConfiguration.deleteMany({ user: id });
+      
+      console.log(`Deleted ${deletedExercises.deletedCount} exercises, ${deletedProgress.deletedCount} student progress records, ${deletedSalaryRecords.deletedCount} salary records, and ${deletedSalaryConfigs.deletedCount} salary configurations for teacher ${user.name}`);
       
     } else if (user.role === 'student') {
       // Remove student from their class
@@ -392,6 +398,14 @@ const deleteUser = async (req, res) => {
       const deletedPayments = await StudentPayment.deleteMany({ student: id });
       
       console.log(`Deleted ${deletedGrades.deletedCount} grades, ${deletedProgress.deletedCount} progress records, and ${deletedPayments.deletedCount} payment records for student ${user.name}`);
+    } else if (user.role === 'admin') {
+      // Delete salary records and configurations if admin has any
+      const deletedSalaryRecords = await TeacherAdminSalary.deleteMany({ user: id });
+      const deletedSalaryConfigs = await SalaryConfiguration.deleteMany({ user: id });
+      
+      if (deletedSalaryRecords.deletedCount > 0 || deletedSalaryConfigs.deletedCount > 0) {
+        console.log(`Deleted ${deletedSalaryRecords.deletedCount} salary records and ${deletedSalaryConfigs.deletedCount} salary configurations for admin ${user.name}`);
+      }
     }
 
     // Delete the user
@@ -406,13 +420,20 @@ const deleteUser = async (req, res) => {
       }),
       ...(user.role === 'teacher' && { 
         exercisesDeleted: true, 
-        progressDeleted: true 
+        progressDeleted: true,
+        salaryRecordsDeleted: true,
+        salaryConfigurationsDeleted: true
+      }),
+      ...(user.role === 'admin' && { 
+        salaryRecordsDeleted: true,
+        salaryConfigurationsDeleted: true
       })
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+
 
 // Change password
 const changePassword = async (req, res) => {
