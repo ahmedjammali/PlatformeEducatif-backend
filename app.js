@@ -31,9 +31,11 @@ const incomeAnalyticsRoutes = require("./routes/incomeAnalyticsRoutes");
 const outcomeAnalyticsRoutes = require("./routes/outcomeAnalyticsRoutes");
 const exportRoutes = require("./routes/exportRoutes");
 const scheduleRoutes = require("./routes/scheduleRoutes");
+const caisseRoutes = require("./routes/caisseRoutes");
 
 setupUploadDirectories().catch(console.error);
 // API Routes
+app.use("/api/caisse", caisseRoutes);
 app.use("/api/schools", schoolRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/subjects", subjectRoutes);
